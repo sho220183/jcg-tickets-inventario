@@ -6,10 +6,13 @@ const navItems = [
   { to: '/tickets', label: 'Tickets' },
   { to: '/clientes', label: 'Clientes' },
   { to: '/inventario', label: 'Inventario' },
+  { to: '/tecnicos', label: 'Técnicos', adminOnly: true },
+  { to: '/grupos', label: 'Grupos de trabajo', adminOnly: true },
 ]
 
 export default function Layout() {
-  const { profile, signOut } = useAuth()
+  const { profile, isAdmin, signOut } = useAuth()
+  const items = navItems.filter((item) => !item.adminOnly || isAdmin)
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -20,7 +23,7 @@ export default function Layout() {
             <p className="text-xs text-navy-300">Tickets & Inventario</p>
           </div>
           <nav className="mt-2 flex flex-col gap-1 px-3">
-            {navItems.map((item) => (
+            {items.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

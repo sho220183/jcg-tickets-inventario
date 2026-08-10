@@ -7,15 +7,21 @@ const ESTADOS = ['nuevo', 'en_progreso', 'esperando_cliente', 'resuelto', 'cerra
 
 export default function TicketDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [ticket, setTicket] = useState(null)
   const [eventos, setEventos] = useState([])
   const [nota, setNota] = useState('')
   const [loading, setLoading] = useState(true)
 
+  const [tecnicosAsignados, setTecnicosAsignados] = useState([]) // filas de ticket_tecnicos + profile
+  const [todosTecnicos, setTodosTecnicos] = useState([])
+  const [agregandoTecnico, setAgregandoTecnico] = useState('')
+
   useEffect(() => {
     cargarTicket()
     cargarEventos()
+    cargarTecnicosAsignados()
+    if (isAdmin) cargarTodosTecnicos()
   }, [id])
 
   async function cargarTicket() {
@@ -37,6 +43,67 @@ export default function TicketDetail() {
       .eq('ticket_id', id)
       .order('created_at', { ascending: false })
     setEventos(data ?? [])
+  }
+
+  async function cargarTecnicosAsignados() {
+    const { data } = await supabase
+      .from('ticket_tecnicos')
+      .select('profile_id, es_responsable_principal, profiles ( id, nombre_completo )')
+      .eq('ticket_id', id)
+    setTecnicosAsignados(data ?? [])
+  }
+
+  async function cargarTodosTecnicos() {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, nombre_completo')
+      .eq('activo', true)
+      .order('nombre_completo')
+    setTodosTecnicos(data ?? [])
+  }
+
+  async function asignarTecnico(e) {
+    e.preventDefault()
+    if (!agregandoTecnico) return
+
+    const { error } = await supabase
+      .from('ticket_tecnicos')
+      .insert({ ticket_id: id, profile_id: agregandoTecnico })
+
+    if (error) {
+      alert('No se pudo asignar: ' + error.message)
+      return
+    }
+    setAgregandoTecnico('')
+    cargarTecnicosAsignados()
+  }
+
+  async function quitarTecnico(profileId) {
+    const { error } = await supabase
+      .from('ticket_tecnicos')
+      .delete()
+      .eq('ticket_id', id)
+      .eq('profile_id', profileId)
+
+    if (error) {
+      alert('No se pudo quitar al técnico: ' + error.message)
+      return
+    }
+    cargarTecnicosAsignados()
+  }
+
+  async function marcarResponsablePrincipal(profileId) {
+    // Solo puede haber un responsable principal por ticket: primero desmarca a todos
+    await supabase
+      .from('ticket_tecnicos')
+      .update({ es_responsable_principal: false })
+      .eq('ticket_id', id)
+    await supabase
+      .from('ticket_tecnicos')
+      .update({ es_responsable_principal: true })
+      .eq('ticket_id', id)
+      .eq('profile_id', profileId)
+    cargarTecnicosAsignados()
   }
 
   async function cambiarEstado(nuevoEstado) {
@@ -111,6 +178,75 @@ export default function TicketDetail() {
           {ticket.descripcion}
         </div>
       )}
+
+      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="mb-3 text-sm font-semibold text-navy-800">Técnicos asignados</h2>
+
+        {tecnicosAsignados.length === 0 ? (
+          <p className="mb-3 text-sm text-slate-400">Todavía no hay técnicos asignados.</p>
+        ) : (
+          <ul className="mb-3 space-y-2">
+            {tecnicosAsignados.map((t) => (
+              <li
+                key={t.profile_id}
+                className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm"
+              >
+                <span>
+                  {t.profiles?.nombre_completo}
+                  {t.es_responsable_principal && (
+                    <span className="ml-2 rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-medium text-cyan-800">
+                      Responsable principal
+                    </span>
+                  )}
+                </span>
+                {isAdmin && (
+                  <span className="flex gap-3">
+                    {!t.es_responsable_principal && (
+                      <button
+                        onClick={() => marcarResponsablePrincipal(t.profile_id)}
+                        className="text-xs font-medium text-cyan-700 hover:text-cyan-800"
+                      >
+                        Marcar responsable
+                      </button>
+                    )}
+                    <button
+                      onClick={() => quitarTecnico(t.profile_id)}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Quitar
+                    </button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {isAdmin && (
+          <form onSubmit={asignarTecnico} className="flex gap-2">
+            <select
+              value={agregandoTecnico}
+              onChange={(e) => setAgregandoTecnico(e.target.value)}
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Seleccioná un técnico para asignar…</option>
+              {todosTecnicos
+                .filter((t) => !tecnicosAsignados.some((ta) => ta.profile_id === t.id))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre_completo}
+                  </option>
+                ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600"
+            >
+              Asignar
+            </button>
+          </form>
+        )}
+      </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-3 text-sm font-semibold text-navy-800">Historial</h2>
