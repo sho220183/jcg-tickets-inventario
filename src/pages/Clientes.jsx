@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 
 const VACIO = {
   nombre: '',
+  ruc: '',
   contacto_nombre: '',
   telefono: '',
   email: '',
@@ -41,6 +42,7 @@ export default function Clientes() {
   function abrirEdicion(cliente) {
     setForm({
       nombre: cliente.nombre ?? '',
+      ruc: cliente.ruc ?? '',
       contacto_nombre: cliente.contacto_nombre ?? '',
       telefono: cliente.telefono ?? '',
       email: cliente.email ?? '',
@@ -54,16 +56,26 @@ export default function Clientes() {
   async function guardar(e) {
     e.preventDefault()
 
+    const payload = { ...form, ruc: form.ruc.trim() === '' ? null : form.ruc.trim() }
+
     if (editandoId) {
-      const { error } = await supabase.from('clientes').update(form).eq('id', editandoId)
+      const { error } = await supabase.from('clientes').update(payload).eq('id', editandoId)
       if (error) {
-        alert('No se pudo actualizar el cliente: ' + error.message)
+        alert(
+          error.code === '23505'
+            ? 'Ese RUC ya está registrado en otro cliente.'
+            : 'No se pudo actualizar el cliente: ' + error.message
+        )
         return
       }
     } else {
-      const { error } = await supabase.from('clientes').insert(form)
+      const { error } = await supabase.from('clientes').insert(payload)
       if (error) {
-        alert('No se pudo crear el cliente: ' + error.message)
+        alert(
+          error.code === '23505'
+            ? 'Ese RUC ya está registrado en otro cliente.'
+            : 'No se pudo crear el cliente: ' + error.message
+        )
         return
       }
     }
@@ -91,8 +103,10 @@ export default function Clientes() {
     cargarClientes()
   }
 
-  const clientesFiltrados = clientes.filter((c) =>
-    c.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  const clientesFiltrados = clientes.filter(
+    (c) =>
+      c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (c.ruc ?? '').toLowerCase().includes(busqueda.toLowerCase())
   )
 
   return (
@@ -122,6 +136,19 @@ export default function Clientes() {
               onChange={(e) => setForm({ ...form, nombre: e.target.value })}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               placeholder="Ej: Farmacia San Roque"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              RUC <span className="font-normal text-slate-400">(ej: 3769383-2)</span>
+            </label>
+            <input
+              value={form.ruc}
+              maxLength={15}
+              onChange={(e) => setForm({ ...form, ruc: e.target.value })}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="3769383-2"
             />
           </div>
 
@@ -191,7 +218,7 @@ export default function Clientes() {
       <input
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
-        placeholder="Buscar cliente por nombre…"
+        placeholder="Buscar por nombre o RUC…"
         className="mb-4 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
       />
 
@@ -209,6 +236,7 @@ export default function Clientes() {
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Nombre</th>
+                <th className="px-4 py-3">RUC</th>
                 <th className="px-4 py-3">Contacto</th>
                 <th className="px-4 py-3">Teléfono</th>
                 <th className="px-4 py-3">Email</th>
@@ -219,6 +247,7 @@ export default function Clientes() {
               {clientesFiltrados.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-navy-800">{c.nombre}</td>
+                  <td className="px-4 py-3 text-slate-600">{c.ruc || '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{c.contacto_nombre || '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{c.telefono || '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{c.email || '—'}</td>
