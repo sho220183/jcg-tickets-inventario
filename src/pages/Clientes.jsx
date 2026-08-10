@@ -10,6 +10,8 @@ const VACIO = {
   email: '',
   direccion: '',
   notas: '',
+  notificar_email: true,
+  notificar_whatsapp: false,
 }
 
 export default function Clientes() {
@@ -48,6 +50,8 @@ export default function Clientes() {
       email: cliente.email ?? '',
       direccion: cliente.direccion ?? '',
       notas: cliente.notas ?? '',
+      notificar_email: cliente.notificar_email ?? true,
+      notificar_whatsapp: cliente.notificar_whatsapp ?? false,
     })
     setEditandoId(cliente.id)
     setMostrarForm(true)
@@ -202,6 +206,33 @@ export default function Clientes() {
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               rows={2}
             />
+          </div>
+
+          <div className="md:col-span-2">
+            <p className="mb-1 text-sm font-medium text-slate-700">Notificar por</p>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.notificar_email}
+                  onChange={(e) => setForm({ ...form, notificar_email: e.target.checked })}
+                />
+                Email
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.notificar_whatsapp}
+                  onChange={(e) => setForm({ ...form, notificar_whatsapp: e.target.checked })}
+                />
+                WhatsApp
+              </label>
+            </div>
+            {form.notificar_whatsapp && !form.telefono && (
+              <p className="mt-1 text-xs text-amber-600">
+                Falta cargar el teléfono para poder notificar por WhatsApp.
+              </p>
+            )}
           </div>
 
           <div className="md:col-span-2">

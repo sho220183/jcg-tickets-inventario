@@ -1,33 +1,43 @@
-# Sprint 4 — Asignación de técnicos y grupos de trabajo
+# Fix — Email en técnicos + notificaciones por Email y WhatsApp
 
 ## 1. Base de datos
 Corré en el SQL Editor de Supabase:
-  → migrations/00000000000015_add_ci_profiles.sql
+  → migrations/00000000000016_notificaciones_multicanal.sql
 
-Agrega la columna `ci` (Cédula, varchar 15, única) a `profiles`. Nullable,
-porque los técnicos que ya iniciaron sesión no la tienen todavía — se
-completa desde la nueva pantalla de Técnicos.
+Qué hace:
+- Agrega `email` a `profiles`, tomado automáticamente de la cuenta de login
+  (se completa solo para los técnicos ya existentes, y para los nuevos vía
+  el trigger de alta).
+- Agrega `notificar_email` y `notificar_whatsapp` (booleanos) tanto a
+  `profiles` como a `clientes`.
+- Reemplaza la tabla `notificaciones_email` (que solo cubría email→cliente)
+  por una tabla `notificaciones` generalizada: cubre email y WhatsApp,
+  tanto para clientes como para técnicos.
+- Nuevo trigger: cuando cambia el estado de un ticket, encola notificación
+  al cliente por cada canal que tenga habilitado.
+- Nuevo trigger: cuando se asigna un técnico a un ticket (ticket_tecnicos),
+  encola notificación a ese técnico por cada canal que tenga habilitado.
 
-## 2. Frontend — archivos nuevos
-  src/pages/Tecnicos.jsx        → admin edita CI, teléfono, rol y estado de cada técnico
-  src/pages/GruposTrabajo.jsx   → admin crea grupos y gestiona miembros/clientes
+## 2. Frontend — archivos a reemplazar en tu repo
+  src/pages/Tecnicos.jsx   → muestra el email (solo lectura, viene de la
+                               cuenta) y agrega checkboxes "Notificar por
+                               Email / WhatsApp"
+  src/pages/Clientes.jsx   → agrega los mismos checkboxes de notificación
 
-## 3. Frontend — archivos modificados (reemplazar en tu repo)
-  src/pages/TicketDetail.jsx    → nueva sección "Técnicos asignados"
-                                    (admin asigna/quita, marca responsable principal)
-  src/App.jsx                   → rutas /tecnicos y /grupos
-  src/components/Layout.jsx     → "Técnicos" y "Grupos de trabajo" en el menú
-                                    (solo visibles para admin)
+## 3. Importante: el envío real todavía no está conectado
+Esta migración arma la COLA de notificaciones (tabla `notificaciones`,
+con estado pendiente/enviado/error) tanto para email como WhatsApp, y las
+pantallas ya permiten elegir el canal preferido. Pero el envío real
+requiere:
 
-## 4. Cómo queda el flujo
-- Un ticket puede tener varios técnicos asignados directamente (ticket_tecnicos),
-  y uno de ellos puede marcarse "responsable principal".
-- Un grupo de trabajo le da a TODOS sus miembros visibilidad de TODOS los
-  tickets de los clientes que el grupo tenga asociados — sin asignación
-  individual. Esto ya estaba soportado por el RLS desde el sprint 1.
-- La gestión de asignaciones y grupos es solo para admin, siguiendo las
-  policies de RLS ya aplicadas (los técnicos pueden VER pero no modificar
-  asignaciones).
+- Email: una Edge Function + servicio como Resend (ya lo habíamos
+  conversado en sprints anteriores).
+- WhatsApp: una Edge Function + la API de WhatsApp Business (por ejemplo
+  vía Twilio o Meta Cloud API), que requiere una cuenta de WhatsApp
+  Business verificada — esto lleva más papeleo que el email, conviene
+  planearlo aparte.
 
-## 5. Deploy
-git add . && git commit -m "Sprint 4: asignación de técnicos, grupos de trabajo, CI en técnicos" && git push
+Ambos quedan como tarea del próximo sprint dedicado a notificaciones.
+
+## 4. Deploy
+git add . && git commit -m "Fix: email en técnicos + notificaciones multicanal" && git push
