@@ -1,0 +1,150 @@
+import { useEffect, useState } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../context/AuthContext'
+
+const ESTADOS = ['nuevo', 'en_progreso', 'esperando_cliente', 'resuelto', 'cerrado']
+
+export default function TicketDetail() {
+  const { id } = useParams()
+  const { user } = useAuth()
+  const [ticket, setTicket] = useState(null)
+  const [eventos, setEventos] = useState([])
+  const [nota, setNota] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    cargarTicket()
+    cargarEventos()
+  }, [id])
+
+  async function cargarTicket() {
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('*, clientes ( nombre, telefono, email )')
+      .eq('id', id)
+      .single()
+
+    if (error) console.error(error)
+    setTicket(data)
+    setLoading(false)
+  }
+
+  async function cargarEventos() {
+    const { data } = await supabase
+      .from('ticket_eventos')
+      .select('*')
+      .eq('ticket_id', id)
+      .order('created_at', { ascending: false })
+    setEventos(data ?? [])
+  }
+
+  async function cambiarEstado(nuevoEstado) {
+    const { error } = await supabase
+      .from('tickets')
+      .update({ estado: nuevoEstado })
+      .eq('id', id)
+
+    if (error) {
+      alert('No se pudo cambiar el estado: ' + error.message)
+      return
+    }
+    // El trigger de la base de datos ya registra el evento de cambio de estado
+    // y encola la notificación por email al cliente.
+    cargarTicket()
+    cargarEventos()
+  }
+
+  async function agregarNota(e) {
+    e.preventDefault()
+    if (!nota.trim()) return
+
+    const { error } = await supabase.from('ticket_eventos').insert({
+      ticket_id: id,
+      autor_id: user.id,
+      tipo: 'nota',
+      contenido: nota,
+    })
+
+    if (error) {
+      alert('No se pudo agregar la nota: ' + error.message)
+      return
+    }
+    setNota('')
+    cargarEventos()
+  }
+
+  if (loading) return <p className="text-slate-500">Cargando ticket…</p>
+  if (!ticket) return <p className="text-slate-500">Ticket no encontrado.</p>
+
+  return (
+    <div>
+      <Link to="/tickets" className="mb-4 inline-block text-xs text-cyan-700 hover:text-cyan-800">
+        ← Volver a tickets
+      </Link>
+
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <p className="text-xs font-medium text-slate-400">{ticket.codigo}</p>
+          <h1 className="text-2xl font-semibold text-navy-800">{ticket.titulo}</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Cliente: {ticket.clientes?.nombre} · Prioridad:{' '}
+            <span className="capitalize">{ticket.prioridad}</span>
+          </p>
+        </div>
+
+        <select
+          value={ticket.estado}
+          onChange={(e) => cambiarEstado(e.target.value)}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm capitalize"
+        >
+          {ESTADOS.map((estado) => (
+            <option key={estado} value={estado}>
+              {estado.replace('_', ' ')}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {ticket.descripcion && (
+        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">
+          {ticket.descripcion}
+        </div>
+      )}
+
+      <div className="rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="mb-3 text-sm font-semibold text-navy-800">Historial</h2>
+
+        <form onSubmit={agregarNota} className="mb-4 flex gap-2">
+          <input
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            placeholder="Agregar una nota…"
+            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600"
+          >
+            Agregar
+          </button>
+        </form>
+
+        <ul className="space-y-3">
+          {eventos.map((ev) => (
+            <li key={ev.id} className="border-l-2 border-cyan-200 pl-3 text-sm">
+              <p className="text-slate-700">{ev.contenido}</p>
+              <p className="text-xs text-slate-400">
+                {new Date(ev.created_at).toLocaleString('es-PY')} ·{' '}
+                <span className="capitalize">{ev.tipo.replace('_', ' ')}</span>
+              </p>
+            </li>
+          ))}
+          {eventos.length === 0 && (
+            <p className="text-sm text-slate-400">Todavía no hay actividad en este ticket.</p>
+          )}
+        </ul>
+      </div>
+    </div>
+  )
+}
