@@ -83,7 +83,16 @@ export default function Tickets() {
         </button>
       </div>
 
-      {mostrarForm && (
+      {mostrarForm && clientes.length === 0 && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Todavía no hay clientes cargados, así que no se puede crear un ticket.{' '}
+          <Link to="/clientes" className="font-medium underline">
+            Creá el primer cliente acá →
+          </Link>
+        </div>
+      )}
+
+      {mostrarForm && clientes.length > 0 && (
         <form
           onSubmit={crearTicket}
           className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-5 md:grid-cols-2"

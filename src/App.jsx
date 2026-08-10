@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Tickets from './pages/Tickets'
 import TicketDetail from './pages/TicketDetail'
 import Inventario from './pages/Inventario'
+import Clientes from './pages/Clientes'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/tickets" element={<Tickets />} />
             <Route path="/tickets/:id" element={<TicketDetail />} />
             <Route path="/inventario" element={<Inventario />} />
+            <Route path="/clientes" element={<Clientes />} />
           </Route>
         </Routes>
       </AuthProvider>
