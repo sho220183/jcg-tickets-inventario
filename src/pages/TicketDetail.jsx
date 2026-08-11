@@ -22,6 +22,8 @@ export default function TicketDetail() {
   const [mostrarInventario, setMostrarInventario] = useState(false)
   const [itemSeleccionado, setItemSeleccionado] = useState('')
   const [cantidadUsar, setCantidadUsar] = useState(1)
+  const [carritoInventario, setCarritoInventario] = useState([]) // varios ítems antes de confirmar
+  const [guardandoCarrito, setGuardandoCarrito] = useState(false)
 
   useEffect(() => {
     cargarTicket()
@@ -131,37 +133,63 @@ export default function TicketDetail() {
     setItemsDisponibles(data ?? [])
   }
 
-  async function usarItemInventario(e) {
+  function agregarAlCarrito(e) {
     e.preventDefault()
     if (!itemSeleccionado || cantidadUsar < 1) return
 
-    // 1) Movimiento de salida: el trigger de la base descuenta el stock
-    //    automáticamente (y rechaza si no alcanza).
-    const { error: errorMovimiento } = await supabase.from('inventario_movimientos').insert({
-      item_id: itemSeleccionado,
-      tipo: 'salida',
-      cantidad: cantidadUsar,
-      ticket_id: id,
-      usuario_id: user.id,
-      notas: 'Usado para resolver el ticket',
-    })
+    const item = itemsDisponibles.find((it) => it.id === itemSeleccionado)
+    if (!item) return
 
-    if (errorMovimiento) {
-      alert('No se pudo registrar el uso: ' + errorMovimiento.message)
+    if (cantidadUsar > item.cantidad_stock) {
+      alert(`Solo hay ${item.cantidad_stock} unidades disponibles de "${item.nombre}".`)
       return
     }
 
-    // 2) Vínculo directo ticket <-> ítem, para verlo en el detalle
-    const { error: errorVinculo } = await supabase
-      .from('ticket_inventario')
-      .insert({ ticket_id: id, item_id: itemSeleccionado, cantidad: cantidadUsar })
-
-    if (errorVinculo) {
-      alert('El stock se descontó, pero no se pudo vincular al ticket: ' + errorVinculo.message)
-    }
-
+    setCarritoInventario((prev) => [
+      ...prev,
+      { item_id: item.id, nombre: item.nombre, cantidad: cantidadUsar },
+    ])
     setItemSeleccionado('')
     setCantidadUsar(1)
+  }
+
+  function quitarDelCarrito(itemId) {
+    setCarritoInventario((prev) => prev.filter((row) => row.item_id !== itemId))
+  }
+
+  async function confirmarCarritoInventario() {
+    if (carritoInventario.length === 0) return
+    setGuardandoCarrito(true)
+
+    for (const row of carritoInventario) {
+      // 1) Movimiento de salida: el trigger de la base descuenta el stock
+      //    automáticamente (y rechaza si no alcanza).
+      const { error: errorMovimiento } = await supabase.from('inventario_movimientos').insert({
+        item_id: row.item_id,
+        tipo: 'salida',
+        cantidad: row.cantidad,
+        ticket_id: id,
+        usuario_id: user.id,
+        notas: 'Usado para resolver el ticket',
+      })
+
+      if (errorMovimiento) {
+        alert(`No se pudo registrar "${row.nombre}": ` + errorMovimiento.message)
+        continue
+      }
+
+      // 2) Vínculo directo ticket <-> ítem, para verlo en el detalle
+      const { error: errorVinculo } = await supabase
+        .from('ticket_inventario')
+        .insert({ ticket_id: id, item_id: row.item_id, cantidad: row.cantidad })
+
+      if (errorVinculo) {
+        alert(`El stock de "${row.nombre}" se descontó, pero no se pudo vincular: ` + errorVinculo.message)
+      }
+    }
+
+    setCarritoInventario([])
+    setGuardandoCarrito(false)
     cargarInventarioUsado()
     cargarItemsDisponibles()
   }
@@ -371,7 +399,7 @@ export default function TicketDetail() {
               </ul>
             )}
 
-            <form onSubmit={usarItemInventario} className="flex flex-wrap items-end gap-2">
+            <form onSubmit={agregarAlCarrito} className="mb-4 flex flex-wrap items-end gap-2">
               <div className="flex-1">
                 <label className="mb-1 block text-xs font-medium text-slate-700">Ítem</label>
                 <select
@@ -381,7 +409,11 @@ export default function TicketDetail() {
                 >
                   <option value="">Seleccioná un ítem…</option>
                   {itemsDisponibles
-                    .filter((it) => !inventarioUsado.some((iu) => iu.item_id === it.id))
+                    .filter(
+                      (it) =>
+                        !inventarioUsado.some((iu) => iu.item_id === it.id) &&
+                        !carritoInventario.some((c) => c.item_id === it.id)
+                    )
                     .map((it) => (
                       <option key={it.id} value={it.id} disabled={it.cantidad_stock <= 0}>
                         {it.nombre} ({it.cantidad_stock} disponibles)
@@ -404,11 +436,44 @@ export default function TicketDetail() {
               <button
                 type="submit"
                 disabled={!itemSeleccionado}
-                className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600 disabled:opacity-50"
+                className="rounded-md border border-navy-700 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50"
               >
-                Usar en este ticket
+                + Agregar a la lista
               </button>
             </form>
+
+            {carritoInventario.length > 0 && (
+              <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase text-cyan-800">
+                  Por confirmar ({carritoInventario.length} ítem
+                  {carritoInventario.length !== 1 && 's'})
+                </p>
+                <ul className="mb-3 space-y-1">
+                  {carritoInventario.map((row) => (
+                    <li key={row.item_id} className="flex items-center justify-between text-sm">
+                      <span>
+                        {row.nombre} × {row.cantidad}
+                      </span>
+                      <button
+                        onClick={() => quitarDelCarrito(row.item_id)}
+                        className="text-xs font-medium text-red-600 hover:text-red-700"
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={confirmarCarritoInventario}
+                  disabled={guardandoCarrito}
+                  className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600 disabled:opacity-60"
+                >
+                  {guardandoCarrito
+                    ? 'Guardando…'
+                    : `Confirmar uso de ${carritoInventario.length} ítem${carritoInventario.length !== 1 ? 's' : ''} en este ticket`}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
