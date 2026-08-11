@@ -1,24 +1,33 @@
-# Fix — RLS bloqueaba los triggers de notificaciones
+# Fix — No se podía cerrar (entregar) un ticket de reparación
 
 ## Síntoma
-Al asignar un técnico a un ticket (o al cambiar el estado):
-  "new row violates row-level security policy for table notificaciones"
+Al cambiar el estado a "Entregado" (cerrado):
+  "No se pudo cambiar el estado: Este ticket está cerrado. Reabrilo
+  (cambiando su estado) antes de modificarlo."
 
 ## Causa
-Los triggers que encolan notificaciones corren con los permisos del
-usuario que hizo la acción. La tabla `notificaciones` tiene RLS activado
-pero solo tenía policy de SELECT para admin — ninguna de INSERT. El
-trigger intentaba insertar y RLS lo bloqueaba, lo que hacía fallar toda
-la operación (no solo la notificación).
+Dos triggers que no se habían probado juntos:
+1. El que completa fecha_entrega_real cuando el ticket pasa a cerrado
+   (sprint 9).
+2. El que bloquea ediciones en tickets cerrados (fix anterior).
+
+El primero se disparaba DESPUÉS de que el ticket ya figurara como
+cerrado, y el segundo lo interceptaba pensando que era una edición
+humana no autorizada.
 
 ## Solución
-Un solo archivo SQL: marca ambas funciones de trigger como
-SECURITY DEFINER, para que inserten con privilegios propios sin
-depender de las policies del usuario que disparó la acción — mismo
-patrón que ya usa handle_new_user() desde el sprint 1.
+Un solo archivo SQL, sin tocar el frontend. Cambia el trigger de
+"AFTER UPDATE" a "BEFORE UPDATE" — con eso, en el momento justo en que
+se completa la fecha de entrega, el ticket todavía figura con su estado
+anterior, así que pasa el chequeo de bloqueo sin problema. Nada cambia
+para el bloqueo real cuando alguien intenta editar un ticket ya cerrado.
 
 ## Cómo aplicar
 Corré en el SQL Editor de Supabase:
-  → 00000000000017_fix_rls_notificaciones.sql
+  → 00000000000023_fix_cerrar_reparacion.sql
 
-No requiere cambios en el frontend. No hay que hacer redeploy en Netlify.
+## Cómo probar
+Volvé a intentar lo mismo que te falló: pasá el mismo ticket de
+reparación (u otro nuevo) a "Entregado". Debería cambiar sin error, y
+la ficha del equipo debería mostrar la fecha de entrega completada
+sola.
