@@ -1,43 +1,40 @@
-# Fix — Email en técnicos + notificaciones por Email y WhatsApp
+# Sprint 6 — Vínculo de inventario a tickets
 
 ## 1. Base de datos
 Corré en el SQL Editor de Supabase:
-  → migrations/00000000000016_notificaciones_multicanal.sql
+  → migrations/00000000000018_vinculo_inventario_tickets.sql
 
 Qué hace:
-- Agrega `email` a `profiles`, tomado automáticamente de la cuenta de login
-  (se completa solo para los técnicos ya existentes, y para los nuevos vía
-  el trigger de alta).
-- Agrega `notificar_email` y `notificar_whatsapp` (booleanos) tanto a
-  `profiles` como a `clientes`.
-- Reemplaza la tabla `notificaciones_email` (que solo cubría email→cliente)
-  por una tabla `notificaciones` generalizada: cubre email y WhatsApp,
-  tanto para clientes como para técnicos.
-- Nuevo trigger: cuando cambia el estado de un ticket, encola notificación
-  al cliente por cada canal que tenga habilitado.
-- Nuevo trigger: cuando se asigna un técnico a un ticket (ticket_tecnicos),
-  encola notificación a ese técnico por cada canal que tenga habilitado.
+- Agrega la policy de DELETE que faltaba en `ticket_inventario` (sin
+  esto, no se podía "quitar" un ítem ya vinculado a un ticket).
+- Endurece el trigger que descuenta stock: si se intenta usar más
+  cantidad de la que hay disponible, ahora RECHAZA la operación con un
+  mensaje claro ("Stock insuficiente: hay X unidades y se pidieron Y"),
+  en vez de dejar el stock en negativo silenciosamente.
 
-## 2. Frontend — archivos a reemplazar en tu repo
-  src/pages/Tecnicos.jsx   → muestra el email (solo lectura, viene de la
-                               cuenta) y agrega checkboxes "Notificar por
-                               Email / WhatsApp"
-  src/pages/Clientes.jsx   → agrega los mismos checkboxes de notificación
+## 2. Frontend
+Reemplazá src/pages/TicketDetail.jsx en tu repo por el de este zip.
 
-## 3. Importante: el envío real todavía no está conectado
-Esta migración arma la COLA de notificaciones (tabla `notificaciones`,
-con estado pendiente/enviado/error) tanto para email como WhatsApp, y las
-pantallas ya permiten elegir el canal preferido. Pero el envío real
-requiere:
+## 3. Cómo funciona la nueva sección
+Dentro del detalle de cada ticket aparece un bloque colapsable
+"Inventario utilizado" — cerrado por defecto, tal como pediste, para
+que los tickets que se resuelven solo con asistencia/conocimiento no
+tengan que interactuar con esto.
 
-- Email: una Edge Function + servicio como Resend (ya lo habíamos
-  conversado en sprints anteriores).
-- WhatsApp: una Edge Function + la API de WhatsApp Business (por ejemplo
-  vía Twilio o Meta Cloud API), que requiere una cuenta de WhatsApp
-  Business verificada — esto lleva más papeleo que el email, conviene
-  planearlo aparte.
+Al abrirlo:
+- Se ve qué ítems ya están vinculados a este ticket, con su cantidad.
+- Se puede agregar un ítem nuevo: el dropdown solo muestra ítems con
+  stock disponible (los que están en 0 aparecen deshabilitados) y
+  excluye los que ya están vinculados a este ticket.
+- Al confirmar "Usar en este ticket": se descuenta el stock general
+  automáticamente (vía el trigger que ya existía desde el sprint 1) y
+  queda el vínculo directo ticket ↔ ítem.
+- "Quitar (devuelve stock)" hace el camino inverso: repone el stock y
+  borra el vínculo. Útil si se cargó un ítem por error.
 
-Ambos quedan como tarea del próximo sprint dedicado a notificaciones.
+Todo movimiento (uso o devolución) queda también registrado en
+`inventario_movimientos`, así que el historial de stock de cada ítem
+es trazable incluso sin abrir el ticket.
 
 ## 4. Deploy
-git add . && git commit -m "Fix: email en técnicos + notificaciones multicanal" && git push
+git add . && git commit -m "Sprint 6: vínculo de inventario a tickets" && git push

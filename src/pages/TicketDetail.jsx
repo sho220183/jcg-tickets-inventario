@@ -17,10 +17,18 @@ export default function TicketDetail() {
   const [todosTecnicos, setTodosTecnicos] = useState([])
   const [agregandoTecnico, setAgregandoTecnico] = useState('')
 
+  const [inventarioUsado, setInventarioUsado] = useState([]) // filas de ticket_inventario + item
+  const [itemsDisponibles, setItemsDisponibles] = useState([])
+  const [mostrarInventario, setMostrarInventario] = useState(false)
+  const [itemSeleccionado, setItemSeleccionado] = useState('')
+  const [cantidadUsar, setCantidadUsar] = useState(1)
+
   useEffect(() => {
     cargarTicket()
     cargarEventos()
     cargarTecnicosAsignados()
+    cargarInventarioUsado()
+    cargarItemsDisponibles()
     if (isAdmin) cargarTodosTecnicos()
   }, [id])
 
@@ -104,6 +112,77 @@ export default function TicketDetail() {
       .eq('ticket_id', id)
       .eq('profile_id', profileId)
     cargarTecnicosAsignados()
+  }
+
+  async function cargarInventarioUsado() {
+    const { data } = await supabase
+      .from('ticket_inventario')
+      .select('item_id, cantidad, inventario_items ( nombre, cantidad_stock )')
+      .eq('ticket_id', id)
+    setInventarioUsado(data ?? [])
+  }
+
+  async function cargarItemsDisponibles() {
+    const { data } = await supabase
+      .from('inventario_items')
+      .select('id, nombre, cantidad_stock')
+      .neq('estado', 'dado_de_baja')
+      .order('nombre')
+    setItemsDisponibles(data ?? [])
+  }
+
+  async function usarItemInventario(e) {
+    e.preventDefault()
+    if (!itemSeleccionado || cantidadUsar < 1) return
+
+    // 1) Movimiento de salida: el trigger de la base descuenta el stock
+    //    automáticamente (y rechaza si no alcanza).
+    const { error: errorMovimiento } = await supabase.from('inventario_movimientos').insert({
+      item_id: itemSeleccionado,
+      tipo: 'salida',
+      cantidad: cantidadUsar,
+      ticket_id: id,
+      usuario_id: user.id,
+      notas: 'Usado para resolver el ticket',
+    })
+
+    if (errorMovimiento) {
+      alert('No se pudo registrar el uso: ' + errorMovimiento.message)
+      return
+    }
+
+    // 2) Vínculo directo ticket <-> ítem, para verlo en el detalle
+    const { error: errorVinculo } = await supabase
+      .from('ticket_inventario')
+      .insert({ ticket_id: id, item_id: itemSeleccionado, cantidad: cantidadUsar })
+
+    if (errorVinculo) {
+      alert('El stock se descontó, pero no se pudo vincular al ticket: ' + errorVinculo.message)
+    }
+
+    setItemSeleccionado('')
+    setCantidadUsar(1)
+    cargarInventarioUsado()
+    cargarItemsDisponibles()
+  }
+
+  async function quitarItemInventario(itemId, cantidad) {
+    if (!confirm('¿Quitar este ítem del ticket? El stock se va a devolver al inventario.')) return
+
+    // Devuelve el stock (el trigger lo suma de nuevo) y borra el vínculo
+    await supabase.from('inventario_movimientos').insert({
+      item_id: itemId,
+      tipo: 'devolucion',
+      cantidad,
+      ticket_id: id,
+      usuario_id: user.id,
+      notas: 'Se quitó del ticket',
+    })
+
+    await supabase.from('ticket_inventario').delete().eq('ticket_id', id).eq('item_id', itemId)
+
+    cargarInventarioUsado()
+    cargarItemsDisponibles()
   }
 
   async function cambiarEstado(nuevoEstado) {
@@ -245,6 +324,92 @@ export default function TicketDetail() {
               Asignar
             </button>
           </form>
+        )}
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+        <button
+          onClick={() => setMostrarInventario((v) => !v)}
+          className="flex w-full items-center justify-between text-left"
+        >
+          <span>
+            <h2 className="text-sm font-semibold text-navy-800">Inventario utilizado</h2>
+            <p className="text-xs text-slate-400">
+              Opcional — solo si este ticket requirió instalar o consumir algún ítem del
+              inventario ({inventarioUsado.length} ítem{inventarioUsado.length !== 1 && 's'})
+            </p>
+          </span>
+          <span className="text-xs font-medium text-cyan-700">
+            {mostrarInventario ? 'Ocultar' : 'Ver / agregar'}
+          </span>
+        </button>
+
+        {mostrarInventario && (
+          <div className="mt-4">
+            {inventarioUsado.length === 0 ? (
+              <p className="mb-3 text-sm text-slate-400">
+                Este ticket todavía no tiene inventario vinculado.
+              </p>
+            ) : (
+              <ul className="mb-3 space-y-2">
+                {inventarioUsado.map((iu) => (
+                  <li
+                    key={iu.item_id}
+                    className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    <span>
+                      {iu.inventario_items?.nombre} × {iu.cantidad}
+                    </span>
+                    <button
+                      onClick={() => quitarItemInventario(iu.item_id, iu.cantidad)}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Quitar (devuelve stock)
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form onSubmit={usarItemInventario} className="flex flex-wrap items-end gap-2">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-slate-700">Ítem</label>
+                <select
+                  value={itemSeleccionado}
+                  onChange={(e) => setItemSeleccionado(e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Seleccioná un ítem…</option>
+                  {itemsDisponibles
+                    .filter((it) => !inventarioUsado.some((iu) => iu.item_id === it.id))
+                    .map((it) => (
+                      <option key={it.id} value={it.id} disabled={it.cantidad_stock <= 0}>
+                        {it.nombre} ({it.cantidad_stock} disponibles)
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Cantidad</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={cantidadUsar}
+                  onChange={(e) => setCantidadUsar(Number(e.target.value))}
+                  className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={!itemSeleccionado}
+                className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600 disabled:opacity-50"
+              >
+                Usar en este ticket
+              </button>
+            </form>
+          </div>
         )}
       </div>
 
