@@ -4,10 +4,12 @@ import { useAuth } from '../context/AuthContext'
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/tickets', label: 'Tickets' },
+  { to: '/reparaciones', label: 'Reparaciones' },
   { to: '/clientes', label: 'Clientes' },
   { to: '/inventario', label: 'Inventario' },
   { to: '/tecnicos', label: 'Técnicos', adminOnly: true },
   { to: '/grupos', label: 'Grupos de trabajo', adminOnly: true },
+  { to: '/notificaciones', label: 'Notificaciones', adminOnly: true },
 ]
 
 export default function Layout() {

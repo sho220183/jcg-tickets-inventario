@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
-
-const ESTADOS = ['nuevo', 'en_progreso', 'esperando_cliente', 'resuelto', 'cerrado']
+import { ESTADOS, estadoLabel, TIPO_EQUIPO_LABEL } from '../lib/estados'
 
 export default function TicketDetail() {
   const { id } = useParams()
@@ -25,6 +24,11 @@ export default function TicketDetail() {
   const [carritoInventario, setCarritoInventario] = useState([]) // varios ítems antes de confirmar
   const [guardandoCarrito, setGuardandoCarrito] = useState(false)
 
+  const [equipo, setEquipo] = useState(null) // ficha de equipos_reparacion, solo si tipo = 'reparacion'
+  const [editandoEquipo, setEditandoEquipo] = useState(false)
+  const [formEquipo, setFormEquipo] = useState(null)
+  const [guardandoEquipo, setGuardandoEquipo] = useState(false)
+
   useEffect(() => {
     cargarTicket()
     cargarEventos()
@@ -44,6 +48,66 @@ export default function TicketDetail() {
     if (error) console.error(error)
     setTicket(data)
     setLoading(false)
+
+    if (data?.tipo === 'reparacion') {
+      cargarEquipo()
+    }
+  }
+
+  async function cargarEquipo() {
+    const { data, error } = await supabase
+      .from('equipos_reparacion')
+      .select('*')
+      .eq('ticket_id', id)
+      .maybeSingle()
+
+    if (error) console.error(error)
+    setEquipo(data)
+  }
+
+  function abrirEdicionEquipo() {
+    setFormEquipo({
+      tipo_equipo: equipo.tipo_equipo,
+      marca: equipo.marca ?? '',
+      modelo: equipo.modelo ?? '',
+      numero_serie: equipo.numero_serie ?? '',
+      accesorios_entregados: equipo.accesorios_entregados ?? '',
+      estado_al_recibir: equipo.estado_al_recibir ?? '',
+      presupuesto_estimado: equipo.presupuesto_estimado ?? '',
+      presupuesto_aprobado:
+        equipo.presupuesto_aprobado === null ? '' : String(equipo.presupuesto_aprobado),
+      fecha_estimada_entrega: equipo.fecha_estimada_entrega ?? '',
+      garantia_dias: equipo.garantia_dias,
+    })
+    setEditandoEquipo(true)
+  }
+
+  async function guardarEquipo(e) {
+    e.preventDefault()
+    setGuardandoEquipo(true)
+
+    const payload = {
+      ...formEquipo,
+      presupuesto_estimado: formEquipo.presupuesto_estimado
+        ? Number(formEquipo.presupuesto_estimado)
+        : null,
+      presupuesto_aprobado:
+        formEquipo.presupuesto_aprobado === '' ? null : formEquipo.presupuesto_aprobado === 'true',
+      fecha_estimada_entrega: formEquipo.fecha_estimada_entrega || null,
+      garantia_dias: Number(formEquipo.garantia_dias) || 0,
+    }
+
+    const { error } = await supabase.from('equipos_reparacion').update(payload).eq('ticket_id', id)
+
+    setGuardandoEquipo(false)
+
+    if (error) {
+      alert('No se pudo guardar la ficha del equipo: ' + error.message)
+      return
+    }
+
+    setEditandoEquipo(false)
+    cargarEquipo()
   }
 
   async function cargarEventos() {
@@ -255,13 +319,23 @@ export default function TicketDetail() {
 
   return (
     <div>
-      <Link to="/tickets" className="mb-4 inline-block text-xs text-cyan-700 hover:text-cyan-800">
-        ← Volver a tickets
+      <Link
+        to={ticket.tipo === 'reparacion' ? '/reparaciones' : '/tickets'}
+        className="mb-4 inline-block text-xs text-cyan-700 hover:text-cyan-800"
+      >
+        ← Volver a {ticket.tipo === 'reparacion' ? 'reparaciones' : 'tickets'}
       </Link>
 
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium text-slate-400">{ticket.codigo}</p>
+          <p className="text-xs font-medium text-slate-400">
+            {ticket.codigo}
+            {ticket.tipo === 'reparacion' && (
+              <span className="ml-2 rounded-full bg-navy-100 px-2 py-0.5 text-xs font-medium text-navy-700">
+                Reparación
+              </span>
+            )}
+          </p>
           <h1 className="text-2xl font-semibold text-navy-800">{ticket.titulo}</h1>
           <p className="mt-1 text-sm text-slate-500">
             Cliente: {ticket.clientes?.nombre} · Prioridad:{' '}
@@ -272,11 +346,11 @@ export default function TicketDetail() {
         <select
           value={ticket.estado}
           onChange={(e) => cambiarEstado(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm capitalize"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           {ESTADOS.map((estado) => (
             <option key={estado} value={estado}>
-              {estado.replace('_', ' ')}
+              {estadoLabel(ticket.tipo, estado)}
             </option>
           ))}
         </select>
@@ -292,6 +366,218 @@ export default function TicketDetail() {
         <div className="mb-6 rounded-lg border border-slate-300 bg-slate-100 p-4 text-sm text-slate-600">
           Este ticket está <strong>cerrado</strong>. El inventario, las notas y los técnicos
           asignados quedaron congelados. Para volver a editarlo, cambiá el estado arriba.
+        </div>
+      )}
+
+      {ticket.tipo === 'reparacion' && (
+        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-navy-800">Ficha del equipo</h2>
+            {equipo && !bloqueado && !editandoEquipo && (
+              <button
+                onClick={abrirEdicionEquipo}
+                className="text-xs font-medium text-cyan-700 hover:text-cyan-800"
+              >
+                Editar
+              </button>
+            )}
+          </div>
+
+          {!equipo ? (
+            <p className="text-sm text-slate-400">Cargando ficha del equipo…</p>
+          ) : editandoEquipo ? (
+            <form onSubmit={guardarEquipo} className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Tipo de equipo</label>
+                <select
+                  value={formEquipo.tipo_equipo}
+                  onChange={(e) => setFormEquipo({ ...formEquipo, tipo_equipo: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  {Object.entries(TIPO_EQUIPO_LABEL).map(([valor, label]) => (
+                    <option key={valor} value={valor}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">N° de serie</label>
+                <input
+                  value={formEquipo.numero_serie}
+                  onChange={(e) => setFormEquipo({ ...formEquipo, numero_serie: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Marca</label>
+                <input
+                  value={formEquipo.marca}
+                  onChange={(e) => setFormEquipo({ ...formEquipo, marca: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Modelo</label>
+                <input
+                  value={formEquipo.modelo}
+                  onChange={(e) => setFormEquipo({ ...formEquipo, modelo: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-700">
+                  Accesorios entregados
+                </label>
+                <input
+                  value={formEquipo.accesorios_entregados}
+                  onChange={(e) =>
+                    setFormEquipo({ ...formEquipo, accesorios_entregados: e.target.value })
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-700">
+                  Estado del equipo al recibirlo
+                </label>
+                <textarea
+                  value={formEquipo.estado_al_recibir}
+                  onChange={(e) => setFormEquipo({ ...formEquipo, estado_al_recibir: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">
+                  Presupuesto estimado (Gs.)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formEquipo.presupuesto_estimado}
+                  onChange={(e) =>
+                    setFormEquipo({ ...formEquipo, presupuesto_estimado: e.target.value })
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">
+                  ¿Cliente aprobó el presupuesto?
+                </label>
+                <select
+                  value={formEquipo.presupuesto_aprobado}
+                  onChange={(e) =>
+                    setFormEquipo({ ...formEquipo, presupuesto_aprobado: e.target.value })
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Todavía sin respuesta</option>
+                  <option value="true">Sí, aprobado</option>
+                  <option value="false">No, rechazado</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">
+                  Fecha estimada de entrega
+                </label>
+                <input
+                  type="date"
+                  value={formEquipo.fecha_estimada_entrega}
+                  onChange={(e) =>
+                    setFormEquipo({ ...formEquipo, fecha_estimada_entrega: e.target.value })
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">
+                  Garantía (días)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formEquipo.garantia_dias}
+                  onChange={(e) => setFormEquipo({ ...formEquipo, garantia_dias: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="flex items-end gap-3 md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={guardandoEquipo}
+                  className="rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-60"
+                >
+                  {guardandoEquipo ? 'Guardando…' : 'Guardar ficha'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditandoEquipo(false)}
+                  className="text-sm font-medium text-slate-500 hover:text-slate-700"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm md:grid-cols-2">
+              <p>
+                <span className="text-slate-400">Equipo:</span>{' '}
+                {TIPO_EQUIPO_LABEL[equipo.tipo_equipo]} {equipo.marca} {equipo.modelo}
+              </p>
+              <p>
+                <span className="text-slate-400">N° de serie:</span> {equipo.numero_serie || '—'}
+              </p>
+              <p className="md:col-span-2">
+                <span className="text-slate-400">Accesorios entregados:</span>{' '}
+                {equipo.accesorios_entregados || '—'}
+              </p>
+              <p className="md:col-span-2">
+                <span className="text-slate-400">Estado al recibir:</span>{' '}
+                {equipo.estado_al_recibir || '—'}
+              </p>
+              <p>
+                <span className="text-slate-400">Presupuesto estimado:</span>{' '}
+                {equipo.presupuesto_estimado ? `Gs. ${equipo.presupuesto_estimado.toLocaleString('es-PY')}` : '—'}
+              </p>
+              <p>
+                <span className="text-slate-400">Presupuesto aprobado:</span>{' '}
+                {equipo.presupuesto_aprobado === null
+                  ? 'Sin respuesta todavía'
+                  : equipo.presupuesto_aprobado
+                    ? 'Sí ✓'
+                    : 'No ✗'}
+              </p>
+              <p>
+                <span className="text-slate-400">Entrega estimada:</span>{' '}
+                {equipo.fecha_estimada_entrega
+                  ? new Date(equipo.fecha_estimada_entrega).toLocaleDateString('es-PY')
+                  : '—'}
+              </p>
+              <p>
+                <span className="text-slate-400">Garantía:</span> {equipo.garantia_dias} días
+                {equipo.fecha_entrega_real &&
+                  ` (desde ${new Date(equipo.fecha_entrega_real).toLocaleDateString('es-PY')})`}
+              </p>
+              {equipo.fecha_entrega_real && (
+                <p>
+                  <span className="text-slate-400">Entregado el:</span>{' '}
+                  {new Date(equipo.fecha_entrega_real).toLocaleDateString('es-PY')}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import { ESTADOS, estadoLabel } from '../lib/estados'
 
-const ESTADOS = ['nuevo', 'en_progreso', 'esperando_cliente', 'resuelto', 'cerrado']
 const PRIORIDADES = ['baja', 'media', 'alta', 'urgente']
 
 const ESTADO_BADGE = {
@@ -39,6 +39,7 @@ export default function Tickets() {
     const { data, error } = await supabase
       .from('tickets')
       .select('id, codigo, titulo, estado, prioridad, created_at, clientes ( nombre )')
+      .eq('tipo', 'soporte')
       .order('created_at', { ascending: false })
 
     if (error) console.error(error)
@@ -55,6 +56,7 @@ export default function Tickets() {
     e.preventDefault()
     const { error } = await supabase.from('tickets').insert({
       ...nuevoTicket,
+      tipo: 'soporte',
       created_by: user.id,
     })
 
@@ -178,7 +180,7 @@ export default function Tickets() {
               filtroEstado === estado ? 'bg-navy-700 text-white' : 'bg-slate-100 text-slate-600'
             }`}
           >
-            {estado.replace('_', ' ')}
+            {estadoLabel('soporte', estado)}
           </button>
         ))}
       </div>
@@ -214,7 +216,7 @@ export default function Tickets() {
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_BADGE[t.estado]}`}
                     >
-                      {t.estado.replace('_', ' ')}
+                      {estadoLabel('soporte', t.estado)}
                     </span>
                   </td>
                 </tr>
