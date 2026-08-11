@@ -10,6 +10,7 @@ import Inventario from './pages/Inventario'
 import Clientes from './pages/Clientes'
 import Tecnicos from './pages/Tecnicos'
 import GruposTrabajo from './pages/GruposTrabajo'
+import Notificaciones from './pages/Notificaciones'
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/tecnicos" element={<Tecnicos />} />
             <Route path="/grupos" element={<GruposTrabajo />} />
+            <Route path="/notificaciones" element={<Notificaciones />} />
           </Route>
         </Routes>
       </AuthProvider>

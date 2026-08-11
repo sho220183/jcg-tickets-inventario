@@ -8,6 +8,7 @@ const navItems = [
   { to: '/inventario', label: 'Inventario' },
   { to: '/tecnicos', label: 'Técnicos', adminOnly: true },
   { to: '/grupos', label: 'Grupos de trabajo', adminOnly: true },
+  { to: '/notificaciones', label: 'Notificaciones', adminOnly: true },
 ]
 
 export default function Layout() {
