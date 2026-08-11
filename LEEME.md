@@ -1,40 +1,43 @@
-# Sprint 6 — Vínculo de inventario a tickets
+# Fix — Bloqueo de tickets cerrados
+
+## Contexto
+Se detectaron 2 puntos a corregir:
+1. Las notificaciones de cambio de estado (ej. "esperando_cliente")
+   quedan ENCOLADAS pero todavía no se envían de verdad — falta la
+   Edge Function de email/WhatsApp (pendiente, sprint aparte). Esto no
+   se corrige acá, solo se documenta.
+2. Un ticket "cerrado" seguía totalmente editable: se podía devolver
+   stock, agregar notas, reasignar técnicos. Esto SÍ se corrige en este
+   fix, con bloqueo total salvo reabrir el estado.
 
 ## 1. Base de datos
 Corré en el SQL Editor de Supabase:
-  → migrations/00000000000018_vinculo_inventario_tickets.sql
+  → migrations/00000000000019_bloqueo_ticket_cerrado.sql
 
 Qué hace:
-- Agrega la policy de DELETE que faltaba en `ticket_inventario` (sin
-  esto, no se podía "quitar" un ítem ya vinculado a un ticket).
-- Endurece el trigger que descuenta stock: si se intenta usar más
-  cantidad de la que hay disponible, ahora RECHAZA la operación con un
-  mensaje claro ("Stock insuficiente: hay X unidades y se pidieron Y"),
-  en vez de dejar el stock en negativo silenciosamente.
+- Agrega triggers BEFORE INSERT/UPDATE/DELETE en ticket_eventos,
+  ticket_tecnicos, ticket_inventario e inventario_movimientos.
+- Cada uno chequea el estado del ticket relacionado: si está "cerrado",
+  RECHAZA la operación con el mensaje "Este ticket está cerrado.
+  Reabrilo (cambiando su estado) antes de modificarlo."
+- El cambio de ESTADO del ticket en sí (tabla tickets) NO está
+  bloqueado — es el mecanismo para reabrirlo.
+- Esto protege a nivel de base de datos, no solo en la pantalla: aunque
+  alguien intente modificar por fuera de la interfaz, la base lo va a
+  rechazar igual.
 
 ## 2. Frontend
 Reemplazá src/pages/TicketDetail.jsx en tu repo por el de este zip.
 
-## 3. Cómo funciona la nueva sección
-Dentro del detalle de cada ticket aparece un bloque colapsable
-"Inventario utilizado" — cerrado por defecto, tal como pediste, para
-que los tickets que se resuelven solo con asistencia/conocimiento no
-tengan que interactuar con esto.
+Qué cambia visualmente:
+- Si el ticket está cerrado, aparece un aviso: "Este ticket está
+  cerrado. El inventario, las notas y los técnicos asignados quedaron
+  congelados. Para volver a editarlo, cambiá el estado arriba."
+- Se ocultan los formularios y botones de: agregar/quitar técnicos,
+  marcar responsable principal, agregar/quitar inventario, agregar
+  notas.
+- El selector de estado (arriba a la derecha) sigue siempre visible y
+  habilitado — es la única forma de "reabrir" el ticket.
 
-Al abrirlo:
-- Se ve qué ítems ya están vinculados a este ticket, con su cantidad.
-- Se puede agregar un ítem nuevo: el dropdown solo muestra ítems con
-  stock disponible (los que están en 0 aparecen deshabilitados) y
-  excluye los que ya están vinculados a este ticket.
-- Al confirmar "Usar en este ticket": se descuenta el stock general
-  automáticamente (vía el trigger que ya existía desde el sprint 1) y
-  queda el vínculo directo ticket ↔ ítem.
-- "Quitar (devuelve stock)" hace el camino inverso: repone el stock y
-  borra el vínculo. Útil si se cargó un ítem por error.
-
-Todo movimiento (uso o devolución) queda también registrado en
-`inventario_movimientos`, así que el historial de stock de cada ítem
-es trazable incluso sin abrir el ticket.
-
-## 4. Deploy
-git add . && git commit -m "Sprint 6: vínculo de inventario a tickets" && git push
+## 3. Deploy
+git add . && git commit -m "Fix: bloquear edición de tickets cerrados" && git push

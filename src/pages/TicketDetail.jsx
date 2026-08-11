@@ -251,6 +251,8 @@ export default function TicketDetail() {
   if (loading) return <p className="text-slate-500">Cargando ticket…</p>
   if (!ticket) return <p className="text-slate-500">Ticket no encontrado.</p>
 
+  const bloqueado = ticket.estado === 'cerrado'
+
   return (
     <div>
       <Link to="/tickets" className="mb-4 inline-block text-xs text-cyan-700 hover:text-cyan-800">
@@ -286,6 +288,13 @@ export default function TicketDetail() {
         </div>
       )}
 
+      {bloqueado && (
+        <div className="mb-6 rounded-lg border border-slate-300 bg-slate-100 p-4 text-sm text-slate-600">
+          Este ticket está <strong>cerrado</strong>. El inventario, las notas y los técnicos
+          asignados quedaron congelados. Para volver a editarlo, cambiá el estado arriba.
+        </div>
+      )}
+
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-3 text-sm font-semibold text-navy-800">Técnicos asignados</h2>
 
@@ -306,7 +315,7 @@ export default function TicketDetail() {
                     </span>
                   )}
                 </span>
-                {isAdmin && (
+                {isAdmin && !bloqueado && (
                   <span className="flex gap-3">
                     {!t.es_responsable_principal && (
                       <button
@@ -329,7 +338,7 @@ export default function TicketDetail() {
           </ul>
         )}
 
-        {isAdmin && (
+        {isAdmin && !bloqueado && (
           <form onSubmit={asignarTecnico} className="flex gap-2">
             <select
               value={agregandoTecnico}
@@ -388,61 +397,65 @@ export default function TicketDetail() {
                     <span>
                       {iu.inventario_items?.nombre} × {iu.cantidad}
                     </span>
-                    <button
-                      onClick={() => quitarItemInventario(iu.item_id, iu.cantidad)}
-                      className="text-xs font-medium text-red-600 hover:text-red-700"
-                    >
-                      Quitar (devuelve stock)
-                    </button>
+                    {!bloqueado && (
+                      <button
+                        onClick={() => quitarItemInventario(iu.item_id, iu.cantidad)}
+                        className="text-xs font-medium text-red-600 hover:text-red-700"
+                      >
+                        Quitar (devuelve stock)
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
 
-            <form onSubmit={agregarAlCarrito} className="mb-4 flex flex-wrap items-end gap-2">
-              <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium text-slate-700">Ítem</label>
-                <select
-                  value={itemSeleccionado}
-                  onChange={(e) => setItemSeleccionado(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            {!bloqueado && (
+              <form onSubmit={agregarAlCarrito} className="mb-4 flex flex-wrap items-end gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs font-medium text-slate-700">Ítem</label>
+                  <select
+                    value={itemSeleccionado}
+                    onChange={(e) => setItemSeleccionado(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Seleccioná un ítem…</option>
+                    {itemsDisponibles
+                      .filter(
+                        (it) =>
+                          !inventarioUsado.some((iu) => iu.item_id === it.id) &&
+                          !carritoInventario.some((c) => c.item_id === it.id)
+                      )
+                      .map((it) => (
+                        <option key={it.id} value={it.id} disabled={it.cantidad_stock <= 0}>
+                          {it.nombre} ({it.cantidad_stock} disponibles)
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700">Cantidad</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={cantidadUsar}
+                    onChange={(e) => setCantidadUsar(Number(e.target.value))}
+                    className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!itemSeleccionado}
+                  className="rounded-md border border-navy-700 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50"
                 >
-                  <option value="">Seleccioná un ítem…</option>
-                  {itemsDisponibles
-                    .filter(
-                      (it) =>
-                        !inventarioUsado.some((iu) => iu.item_id === it.id) &&
-                        !carritoInventario.some((c) => c.item_id === it.id)
-                    )
-                    .map((it) => (
-                      <option key={it.id} value={it.id} disabled={it.cantidad_stock <= 0}>
-                        {it.nombre} ({it.cantidad_stock} disponibles)
-                      </option>
-                    ))}
-                </select>
-              </div>
+                  + Agregar a la lista
+                </button>
+              </form>
+            )}
 
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700">Cantidad</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={cantidadUsar}
-                  onChange={(e) => setCantidadUsar(Number(e.target.value))}
-                  className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={!itemSeleccionado}
-                className="rounded-md border border-navy-700 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50"
-              >
-                + Agregar a la lista
-              </button>
-            </form>
-
-            {carritoInventario.length > 0 && (
+            {!bloqueado && carritoInventario.length > 0 && (
               <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 p-3">
                 <p className="mb-2 text-xs font-semibold uppercase text-cyan-800">
                   Por confirmar ({carritoInventario.length} ítem
@@ -481,20 +494,22 @@ export default function TicketDetail() {
       <div className="rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-3 text-sm font-semibold text-navy-800">Historial</h2>
 
-        <form onSubmit={agregarNota} className="mb-4 flex gap-2">
-          <input
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            placeholder="Agregar una nota…"
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600"
-          >
-            Agregar
-          </button>
-        </form>
+        {!bloqueado && (
+          <form onSubmit={agregarNota} className="mb-4 flex gap-2">
+            <input
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="Agregar una nota…"
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600"
+            >
+              Agregar
+            </button>
+          </form>
+        )}
 
         <ul className="space-y-3">
           {eventos.map((ev) => (
