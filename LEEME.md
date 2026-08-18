@@ -1,40 +1,59 @@
-# Fix de fondo — Cambiar cualquier ticket a "Cerrado"/"Entregado" fallaba
+# Sprint 10 — Alta de usuarios (técnicos/admin) desde la plataforma
 
-## Síntoma
-Al pasar CUALQUIER ticket (soporte o reparación) a su estado final
-("Cerrado" / "Entregado"):
-  "No se pudo cambiar el estado: Este ticket está cerrado. Reabrilo
-  (cambiando su estado) antes de modificarlo."
+## No requiere ninguna migración SQL
+Todo esto usa infraestructura que ya existía: el trigger que crea el
+"profile" automáticamente cuando se crea un usuario (desde el sprint
+1), y las policies de RLS de siempre. Lo único nuevo es la forma de
+crear el usuario en sí.
 
-## Causa real (más de fondo que el fix anterior)
-El fix de ayer (migración 023) resolvió el conflicto para el trigger
-de fecha de entrega de reparaciones, pero había OTRO trigger con el
-mismo problema: el que registra el cambio de estado en el historial
-del ticket (ticket_eventos), que existe desde el sprint 1 y aplica a
-TODOS los tickets, no solo reparaciones. Por eso el bug persistía en
-ambos tipos.
+## Por qué hace falta una Edge Function
+Crear un usuario nuevo en Supabase Auth requiere la "service_role key"
+— la misma clave con privilegios totales que NUNCA puede vivir en el
+código del navegador (cualquiera con acceso al código del sitio podría
+verla e crear usuarios él mismo). Por eso se resuelve igual que el
+envío de emails: una función que corre en los servidores de Supabase,
+que primero valida que quien la llama sea admin, y recién ahí usa esa
+clave para crear el usuario de verdad.
 
-Mecanismo exacto: ese trigger corre DESPUÉS de aplicarse el cambio de
-estado (AFTER UPDATE). Cuando el nuevo estado es "cerrado", en el
-momento en que intenta anotar el evento en el historial, el ticket YA
-figura como cerrado en la base — y el trigger de bloqueo (agregado en
-un fix posterior a este trigger viejo) lo frena pensando que es una
-edición no autorizada.
+## Paso 1 — Desplegar la nueva función
+Copiá la carpeta supabase/functions/create-user a tu repo (mismo lugar
+donde ya tenés supabase/functions/send-notification), y corré:
 
-## Solución
-Mismo approach que ayer: mover el trigger a BEFORE UPDATE, para que
-registre el evento mientras el ticket todavía figura con su estado
-anterior. El comportamiento de bloqueo real (impedir que alguien EDITE
-un ticket ya cerrado) no cambia en nada.
+```bash
+npx supabase functions deploy create-user
+```
 
-## Cómo aplicar
-Corré en el SQL Editor de Supabase:
-  → 00000000000024_fix_cambio_estado_general.sql
+No hace falta configurar ningún secreto nuevo — la función usa
+SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY, que
+Supabase ya inyecta automáticamente en cualquier Edge Function.
 
-No requiere cambios en el frontend.
+## Paso 2 — Frontend
+Reemplazá src/pages/Tecnicos.jsx en tu repo por el de este zip.
 
-## Cómo probar
-Probá cerrar un ticket de soporte normal Y uno de reparación — ambos
-deberían cambiar de estado sin error esta vez. Revisá también que el
-historial del ticket muestre el evento de cambio de estado
-correctamente.
+## Cómo funciona
+1. Menú → Técnicos → "+ Nuevo técnico"
+2. Cargás nombre, email, rol (tecnico/admin), y una contraseña temporal
+   (podés escribirla vos o usar el botón "Generar" para una segura al
+   azar)
+3. Al crear, aparece un aviso verde ÚNICA VEZ con el email y la
+   contraseña — copialo antes de cerrarlo, porque no se vuelve a
+   mostrar. Se lo pasás al técnico por el medio que prefieras
+   (WhatsApp, en persona, etc.) para que inicie sesión.
+4. El usuario ya queda funcionando de inmediato — no requiere
+   confirmar el email ni ningún paso adicional.
+
+## Limitación a tener en cuenta (posible mejora futura)
+Hoy no hay una pantalla de "cambiar mi contraseña" dentro del sistema,
+así que el técnico se queda con la contraseña temporal que le diste
+salvo que vos se la vuelvas a generar. Si más adelante querés que cada
+uno pueda cambiarla por su cuenta, hay dos caminos:
+  a) Agregar una pantalla simple de "cambiar contraseña" (rápido de
+     armar).
+  b) Pasar a un flujo de invitación por email (el usuario recibe un
+     link y define su propia contraseña la primera vez) — más prolijo,
+     pero requiere configurar el redirect URL de Supabase Auth y una
+     pantalla nueva para procesar ese link.
+Avisame cuál preferís cuando quieras encararlo.
+
+## Deploy del frontend
+git add . && git commit -m "Sprint 10: alta de usuarios desde la plataforma" && git push
