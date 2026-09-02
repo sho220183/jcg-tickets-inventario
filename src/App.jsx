@@ -12,6 +12,7 @@ import Clientes from './pages/Clientes'
 import Tecnicos from './pages/Tecnicos'
 import GruposTrabajo from './pages/GruposTrabajo'
 import Notificaciones from './pages/Notificaciones'
+import NotFound from './pages/NotFound'
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/tecnicos" element={<Tecnicos />} />
             <Route path="/grupos" element={<GruposTrabajo />} />
             <Route path="/notificaciones" element={<Notificaciones />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       </AuthProvider>

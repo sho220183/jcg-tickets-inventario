@@ -1,17 +1,27 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Plus, Ticket as TicketIcon, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { ESTADOS, estadoLabel } from '../lib/estados'
+import PageHeader from '../components/ui/PageHeader'
+import Card, { CardBody } from '../components/ui/Card'
+import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
+import EmptyState from '../components/ui/EmptyState'
+import FilterPills from '../components/ui/FilterPills'
+import Table, { Td, Th } from '../components/ui/Table'
+import { PageLoading } from '../components/ui/Spinner'
+import { FieldGroup, Input, Select, Textarea } from '../components/ui/Field'
 
 const PRIORIDADES = ['baja', 'media', 'alta', 'urgente']
 
-const ESTADO_BADGE = {
-  nuevo: 'bg-cyan-100 text-cyan-800',
-  en_progreso: 'bg-amber-100 text-amber-800',
-  esperando_cliente: 'bg-purple-100 text-purple-800',
-  resuelto: 'bg-emerald-100 text-emerald-800',
-  cerrado: 'bg-slate-200 text-slate-600',
+const ESTADO_TONO = {
+  nuevo: 'cyan',
+  en_progreso: 'amber',
+  esperando_cliente: 'purple',
+  resuelto: 'emerald',
+  cerrado: 'slate',
 }
 
 export default function Tickets() {
@@ -75,15 +85,16 @@ export default function Tickets() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-navy-800">Tickets</h1>
-        <button
-          onClick={() => setMostrarForm((v) => !v)}
-          className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600"
-        >
-          {mostrarForm ? 'Cancelar' : '+ Nuevo ticket'}
-        </button>
-      </div>
+      <PageHeader
+        title="Tickets"
+        subtitle="Soporte técnico en curso y su historial."
+        action={
+          <Button onClick={() => setMostrarForm((v) => !v)} variant={mostrarForm ? 'outline' : 'primary'}>
+            {mostrarForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {mostrarForm ? 'Cancelar' : 'Nuevo ticket'}
+          </Button>
+        }
+      />
 
       {mostrarForm && clientes.length === 0 && (
         <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -95,135 +106,110 @@ export default function Tickets() {
       )}
 
       {mostrarForm && clientes.length > 0 && (
-        <form
-          onSubmit={crearTicket}
-          className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-5 md:grid-cols-2"
-        >
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Cliente</label>
-            <select
-              required
-              value={nuevoTicket.cliente_id}
-              onChange={(e) => setNuevoTicket({ ...nuevoTicket, cliente_id: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">Seleccioná un cliente…</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
+        <Card className="mb-6">
+          <CardBody>
+            <form onSubmit={crearTicket} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FieldGroup label="Cliente">
+                <Select
+                  required
+                  value={nuevoTicket.cliente_id}
+                  onChange={(e) => setNuevoTicket({ ...nuevoTicket, cliente_id: e.target.value })}
+                >
+                  <option value="">Seleccioná un cliente…</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </Select>
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Prioridad</label>
-            <select
-              value={nuevoTicket.prioridad}
-              onChange={(e) => setNuevoTicket({ ...nuevoTicket, prioridad: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              {PRIORIDADES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
+              <FieldGroup label="Prioridad">
+                <Select
+                  value={nuevoTicket.prioridad}
+                  onChange={(e) => setNuevoTicket({ ...nuevoTicket, prioridad: e.target.value })}
+                >
+                  {PRIORIDADES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </Select>
+              </FieldGroup>
 
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">Título</label>
-            <input
-              required
-              value={nuevoTicket.titulo}
-              onChange={(e) => setNuevoTicket({ ...nuevoTicket, titulo: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Ej: No conecta a internet"
-            />
-          </div>
+              <FieldGroup label="Título" className="md:col-span-2">
+                <Input
+                  required
+                  value={nuevoTicket.titulo}
+                  onChange={(e) => setNuevoTicket({ ...nuevoTicket, titulo: e.target.value })}
+                  placeholder="Ej: No conecta a internet"
+                />
+              </FieldGroup>
 
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">Descripción</label>
-            <textarea
-              value={nuevoTicket.descripcion}
-              onChange={(e) => setNuevoTicket({ ...nuevoTicket, descripcion: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              rows={3}
-            />
-          </div>
+              <FieldGroup label="Descripción" className="md:col-span-2">
+                <Textarea
+                  value={nuevoTicket.descripcion}
+                  onChange={(e) => setNuevoTicket({ ...nuevoTicket, descripcion: e.target.value })}
+                  rows={3}
+                />
+              </FieldGroup>
 
-          <div className="md:col-span-2">
-            <button
-              type="submit"
-              className="rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700"
-            >
-              Crear ticket
-            </button>
-          </div>
-        </form>
+              <div className="md:col-span-2">
+                <Button type="submit" variant="accent">
+                  Crear ticket
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
       )}
 
-      <div className="mb-4 flex gap-2">
-        <button
-          onClick={() => setFiltroEstado('todos')}
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            filtroEstado === 'todos' ? 'bg-navy-700 text-white' : 'bg-slate-100 text-slate-600'
-          }`}
-        >
-          Todos
-        </button>
-        {ESTADOS.map((estado) => (
-          <button
-            key={estado}
-            onClick={() => setFiltroEstado(estado)}
-            className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${
-              filtroEstado === estado ? 'bg-navy-700 text-white' : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {estadoLabel('soporte', estado)}
-          </button>
-        ))}
-      </div>
+      <FilterPills
+        opciones={[
+          { value: 'todos', label: 'Todos' },
+          ...ESTADOS.map((e) => ({ value: e, label: estadoLabel('soporte', e) })),
+        ]}
+        valor={filtroEstado}
+        onChange={setFiltroEstado}
+      />
 
       {loading ? (
-        <p className="text-slate-500">Cargando tickets…</p>
+        <PageLoading label="Cargando tickets…" />
       ) : ticketsFiltrados.length === 0 ? (
-        <p className="text-slate-500">No hay tickets para este filtro.</p>
+        <EmptyState
+          icon={TicketIcon}
+          title="No hay tickets para este filtro"
+          description="Probá con otro estado, o creá un ticket nuevo."
+        />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Código</th>
-                <th className="px-4 py-3">Título</th>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Prioridad</th>
-                <th className="px-4 py-3">Estado</th>
+        <Table>
+          <thead className="bg-slate-50">
+            <tr>
+              <Th>Código</Th>
+              <Th>Título</Th>
+              <Th>Cliente</Th>
+              <Th>Prioridad</Th>
+              <Th>Estado</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {ticketsFiltrados.map((t) => (
+              <tr key={t.id} className="hover:bg-slate-50">
+                <Td>
+                  <Link to={`/tickets/${t.id}`} className="font-medium text-cyan-700 hover:text-cyan-800">
+                    {t.codigo}
+                  </Link>
+                </Td>
+                <Td>{t.titulo}</Td>
+                <Td className="text-slate-600">{t.clientes?.nombre}</Td>
+                <Td className="capitalize text-slate-600">{t.prioridad}</Td>
+                <Td>
+                  <Badge tono={ESTADO_TONO[t.estado]}>{estadoLabel('soporte', t.estado)}</Badge>
+                </Td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {ticketsFiltrados.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <Link to={`/tickets/${t.id}`} className="font-medium text-cyan-700">
-                      {t.codigo}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{t.titulo}</td>
-                  <td className="px-4 py-3 text-slate-600">{t.clientes?.nombre}</td>
-                  <td className="px-4 py-3 capitalize text-slate-600">{t.prioridad}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_BADGE[t.estado]}`}
-                    >
-                      {estadoLabel('soporte', t.estado)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </Table>
       )}
     </div>
   )

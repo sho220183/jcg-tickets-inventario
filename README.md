@@ -85,6 +85,18 @@ src/
     Inventario.jsx            → listado + alta de ítems
 ```
 
+## Revisor de bugs automático
+
+Este repo incluye un subagente de Claude Code en `.claude/agents/bug-reviewer.md`. Desde
+cualquier sesión de Claude Code o Cowork abierta sobre este repositorio, pedí algo como
+"usá el agente bug-reviewer para revisar el sistema" y va a auditar de forma sistemática los
+puntos donde este proyecto ya tuvo bugs reales: acciones del frontend sin su policy de RLS
+correspondiente, orden de triggers (BEFORE/AFTER) sobre tickets cerrados, comentarios del código
+que no reflejan lo que hace la migración de verdad, y columnas que el frontend lee pero que
+podrían no existir todavía en tu proyecto de Supabase. Corrige solo, cuando corresponde, la clase
+de bugs que no cambian el comportamiento visible del sistema (lint, build, policies faltantes) —
+para cualquier cambio de funcionalidad, te va a consultar primero.
+
 ## Próximos pasos sugeridos (no incluidos todavía en este esqueleto)
 
 - Asignación de técnicos a tickets (`ticket_tecnicos`) y grupos de trabajo — la

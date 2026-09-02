@@ -1,17 +1,27 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Plus, Wrench, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { ESTADOS, estadoLabel, TIPO_EQUIPO_LABEL } from '../lib/estados'
+import PageHeader from '../components/ui/PageHeader'
+import Card, { CardBody } from '../components/ui/Card'
+import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
+import EmptyState from '../components/ui/EmptyState'
+import FilterPills from '../components/ui/FilterPills'
+import Table, { Td, Th } from '../components/ui/Table'
+import { PageLoading } from '../components/ui/Spinner'
+import { FieldGroup, Input, Select, Textarea } from '../components/ui/Field'
 
 const PRIORIDADES = ['baja', 'media', 'alta', 'urgente']
 
-const ESTADO_BADGE = {
-  nuevo: 'bg-cyan-100 text-cyan-800',
-  en_progreso: 'bg-amber-100 text-amber-800',
-  esperando_cliente: 'bg-purple-100 text-purple-800',
-  resuelto: 'bg-emerald-100 text-emerald-800',
-  cerrado: 'bg-slate-200 text-slate-600',
+const ESTADO_TONO = {
+  nuevo: 'cyan',
+  en_progreso: 'amber',
+  esperando_cliente: 'purple',
+  resuelto: 'emerald',
+  cerrado: 'slate',
 }
 
 const VACIO = {
@@ -68,7 +78,6 @@ export default function Reparaciones() {
     e.preventDefault()
     setGuardando(true)
 
-    // 1) El ticket en sí: mismo motor que soporte, con tipo "reparacion"
     const { data: ticket, error: errorTicket } = await supabase
       .from('tickets')
       .insert({
@@ -88,7 +97,6 @@ export default function Reparaciones() {
       return
     }
 
-    // 2) La ficha del equipo, enganchada 1 a 1 con el ticket recién creado
     const { error: errorEquipo } = await supabase.from('equipos_reparacion').insert({
       ticket_id: ticket.id,
       tipo_equipo: form.tipo_equipo,
@@ -117,15 +125,16 @@ export default function Reparaciones() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-navy-800">Reparaciones</h1>
-        <button
-          onClick={() => setMostrarForm((v) => !v)}
-          className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600"
-        >
-          {mostrarForm ? 'Cancelar' : '+ Recibir equipo'}
-        </button>
-      </div>
+      <PageHeader
+        title="Reparaciones"
+        subtitle="Equipos recibidos en el taller y su seguimiento."
+        action={
+          <Button onClick={() => setMostrarForm((v) => !v)} variant={mostrarForm ? 'outline' : 'primary'}>
+            {mostrarForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {mostrarForm ? 'Cancelar' : 'Recibir equipo'}
+          </Button>
+        }
+      />
 
       {mostrarForm && clientes.length === 0 && (
         <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -137,264 +146,201 @@ export default function Reparaciones() {
       )}
 
       {mostrarForm && clientes.length > 0 && (
-        <form
-          onSubmit={crearReparacion}
-          className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-5 md:grid-cols-2"
-        >
-          <p className="text-xs font-semibold uppercase text-slate-500 md:col-span-2">
-            Datos del cliente y del problema
-          </p>
+        <Card className="mb-6">
+          <CardBody>
+            <form onSubmit={crearReparacion} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 md:col-span-2">
+                Datos del cliente y del problema
+              </p>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Cliente</label>
-            <select
-              required
-              value={form.cliente_id}
-              onChange={(e) => setForm({ ...form, cliente_id: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">Seleccioná un cliente…</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
+              <FieldGroup label="Cliente">
+                <Select
+                  required
+                  value={form.cliente_id}
+                  onChange={(e) => setForm({ ...form, cliente_id: e.target.value })}
+                >
+                  <option value="">Seleccioná un cliente…</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </Select>
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Prioridad</label>
-            <select
-              value={form.prioridad}
-              onChange={(e) => setForm({ ...form, prioridad: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              {PRIORIDADES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
+              <FieldGroup label="Prioridad">
+                <Select
+                  value={form.prioridad}
+                  onChange={(e) => setForm({ ...form, prioridad: e.target.value })}
+                >
+                  {PRIORIDADES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </Select>
+              </FieldGroup>
 
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Problema reportado por el cliente
-            </label>
-            <textarea
-              required
-              value={form.problema_reportado}
-              onChange={(e) => setForm({ ...form, problema_reportado: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              rows={2}
-              placeholder="Ej: no enciende, pantalla rota, no imprime en color…"
-            />
-          </div>
+              <FieldGroup label="Problema reportado por el cliente" className="md:col-span-2">
+                <Textarea
+                  required
+                  value={form.problema_reportado}
+                  onChange={(e) => setForm({ ...form, problema_reportado: e.target.value })}
+                  rows={2}
+                  placeholder="Ej: no enciende, pantalla rota, no imprime en color…"
+                />
+              </FieldGroup>
 
-          <p className="mt-2 text-xs font-semibold uppercase text-slate-500 md:col-span-2">
-            Datos del equipo
-          </p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 md:col-span-2">
+                Datos del equipo
+              </p>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Tipo de equipo</label>
-            <select
-              value={form.tipo_equipo}
-              onChange={(e) => setForm({ ...form, tipo_equipo: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              {Object.entries(TIPO_EQUIPO_LABEL).map(([valor, label]) => (
-                <option key={valor} value={valor}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
+              <FieldGroup label="Tipo de equipo">
+                <Select
+                  value={form.tipo_equipo}
+                  onChange={(e) => setForm({ ...form, tipo_equipo: e.target.value })}
+                >
+                  {Object.entries(TIPO_EQUIPO_LABEL).map(([valor, label]) => (
+                    <option key={valor} value={valor}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">N° de serie</label>
-            <input
-              value={form.numero_serie}
-              onChange={(e) => setForm({ ...form, numero_serie: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+              <FieldGroup label="N° de serie">
+                <Input
+                  value={form.numero_serie}
+                  onChange={(e) => setForm({ ...form, numero_serie: e.target.value })}
+                />
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Marca</label>
-            <input
-              value={form.marca}
-              onChange={(e) => setForm({ ...form, marca: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+              <FieldGroup label="Marca">
+                <Input value={form.marca} onChange={(e) => setForm({ ...form, marca: e.target.value })} />
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Modelo</label>
-            <input
-              value={form.modelo}
-              onChange={(e) => setForm({ ...form, modelo: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+              <FieldGroup label="Modelo">
+                <Input value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })} />
+              </FieldGroup>
 
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Accesorios entregados
-            </label>
-            <input
-              value={form.accesorios_entregados}
-              onChange={(e) => setForm({ ...form, accesorios_entregados: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Ej: cargador, mouse, funda"
-            />
-          </div>
+              <FieldGroup label="Accesorios entregados" className="md:col-span-2">
+                <Input
+                  value={form.accesorios_entregados}
+                  onChange={(e) => setForm({ ...form, accesorios_entregados: e.target.value })}
+                  placeholder="Ej: cargador, mouse, funda"
+                />
+              </FieldGroup>
 
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Estado del equipo al recibirlo
-            </label>
-            <textarea
-              value={form.estado_al_recibir}
-              onChange={(e) => setForm({ ...form, estado_al_recibir: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              rows={2}
-              placeholder="Ej: golpes en la tapa, pantalla con línea vertical, sin batería"
-            />
-          </div>
+              <FieldGroup label="Estado del equipo al recibirlo" className="md:col-span-2">
+                <Textarea
+                  value={form.estado_al_recibir}
+                  onChange={(e) => setForm({ ...form, estado_al_recibir: e.target.value })}
+                  rows={2}
+                  placeholder="Ej: golpes en la tapa, pantalla con línea vertical, sin batería"
+                />
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Presupuesto estimado (Gs.)
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={form.presupuesto_estimado}
-              onChange={(e) => setForm({ ...form, presupuesto_estimado: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Opcional, se puede cargar después"
-            />
-          </div>
+              <FieldGroup label="Presupuesto estimado (Gs.)">
+                <Input
+                  type="number"
+                  min="0"
+                  value={form.presupuesto_estimado}
+                  onChange={(e) => setForm({ ...form, presupuesto_estimado: e.target.value })}
+                  placeholder="Opcional, se puede cargar después"
+                />
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Fecha estimada de entrega
-            </label>
-            <input
-              type="date"
-              value={form.fecha_estimada_entrega}
-              onChange={(e) => setForm({ ...form, fecha_estimada_entrega: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+              <FieldGroup label="Fecha estimada de entrega">
+                <Input
+                  type="date"
+                  value={form.fecha_estimada_entrega}
+                  onChange={(e) => setForm({ ...form, fecha_estimada_entrega: e.target.value })}
+                />
+              </FieldGroup>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Garantía (días tras la entrega)
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={form.garantia_dias}
-              onChange={(e) => setForm({ ...form, garantia_dias: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+              <FieldGroup label="Garantía (días tras la entrega)">
+                <Input
+                  type="number"
+                  min="0"
+                  value={form.garantia_dias}
+                  onChange={(e) => setForm({ ...form, garantia_dias: e.target.value })}
+                />
+              </FieldGroup>
 
-          <div className="md:col-span-2">
-            <button
-              type="submit"
-              disabled={guardando}
-              className="rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-60"
-            >
-              {guardando ? 'Guardando…' : 'Registrar ingreso del equipo'}
-            </button>
-          </div>
-        </form>
+              <div className="md:col-span-2">
+                <Button type="submit" variant="accent" loading={guardando}>
+                  {guardando ? 'Guardando…' : 'Registrar ingreso del equipo'}
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          onClick={() => setFiltroEstado('todos')}
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            filtroEstado === 'todos' ? 'bg-navy-700 text-white' : 'bg-slate-100 text-slate-600'
-          }`}
-        >
-          Todos
-        </button>
-        {ESTADOS.map((estado) => (
-          <button
-            key={estado}
-            onClick={() => setFiltroEstado(estado)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              filtroEstado === estado ? 'bg-navy-700 text-white' : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {estadoLabel('reparacion', estado)}
-          </button>
-        ))}
-      </div>
+      <FilterPills
+        opciones={[
+          { value: 'todos', label: 'Todos' },
+          ...ESTADOS.map((e) => ({ value: e, label: estadoLabel('reparacion', e) })),
+        ]}
+        valor={filtroEstado}
+        onChange={setFiltroEstado}
+      />
 
       {loading ? (
-        <p className="text-slate-500">Cargando reparaciones…</p>
+        <PageLoading label="Cargando reparaciones…" />
       ) : filtradas.length === 0 ? (
-        <p className="text-slate-500">No hay equipos para este filtro.</p>
+        <EmptyState
+          icon={Wrench}
+          title="No hay equipos para este filtro"
+          description="Probá con otro estado, o registrá el ingreso de un equipo nuevo."
+        />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Código</th>
-                <th className="px-4 py-3">Equipo</th>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Entrega estimada</th>
-                <th className="px-4 py-3">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtradas.map((r) => {
-                const equipo = r.equipos_reparacion
-                return (
-                  <tr key={r.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
-                      <Link to={`/tickets/${r.id}`} className="font-medium text-cyan-700">
-                        {r.codigo}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      {equipo ? (
-                        <>
-                          {TIPO_EQUIPO_LABEL[equipo.tipo_equipo]}
-                          {(equipo.marca || equipo.modelo) && (
-                            <span className="text-slate-400">
-                              {' '}
-                              — {equipo.marca} {equipo.modelo}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{r.clientes?.nombre}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {equipo?.fecha_estimada_entrega
-                        ? new Date(equipo.fecha_estimada_entrega).toLocaleDateString('es-PY')
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_BADGE[r.estado]}`}
-                      >
-                        {estadoLabel('reparacion', r.estado)}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <thead className="bg-slate-50">
+            <tr>
+              <Th>Código</Th>
+              <Th>Equipo</Th>
+              <Th>Cliente</Th>
+              <Th>Entrega estimada</Th>
+              <Th>Estado</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filtradas.map((r) => {
+              const equipo = r.equipos_reparacion
+              return (
+                <tr key={r.id} className="hover:bg-slate-50">
+                  <Td>
+                    <Link to={`/tickets/${r.id}`} className="font-medium text-cyan-700 hover:text-cyan-800">
+                      {r.codigo}
+                    </Link>
+                  </Td>
+                  <Td>
+                    {equipo ? (
+                      <>
+                        {TIPO_EQUIPO_LABEL[equipo.tipo_equipo]}
+                        {(equipo.marca || equipo.modelo) && (
+                          <span className="text-slate-400"> — {equipo.marca} {equipo.modelo}</span>
+                        )}
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </Td>
+                  <Td className="text-slate-600">{r.clientes?.nombre}</Td>
+                  <Td className="text-slate-600">
+                    {equipo?.fecha_estimada_entrega
+                      ? new Date(equipo.fecha_estimada_entrega).toLocaleDateString('es-PY')
+                      : '—'}
+                  </Td>
+                  <Td>
+                    <Badge tono={ESTADO_TONO[r.estado]}>{estadoLabel('reparacion', r.estado)}</Badge>
+                  </Td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </Table>
       )}
     </div>
   )
