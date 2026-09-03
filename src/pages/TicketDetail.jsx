@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Lock, Package, Pencil, Plus, Trash2, UserPlus } from 'lucide-react'
+import { ArrowLeft, Images, Lock, Package, Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { ESTADOS, estadoLabel, TIPO_EQUIPO_LABEL } from '../lib/estados'
@@ -17,6 +17,10 @@ const ESTADO_TONO = {
   resuelto: 'emerald',
   cerrado: 'slate',
 }
+
+const BUCKET_FOTOS = 'ticket-fotos'
+const FOTO_TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+const FOTO_TAMANO_MAXIMO = 15 * 1024 * 1024 // 15 MB, igual que el límite del bucket en Supabase
 
 export default function TicketDetail() {
   const { id } = useParams()
@@ -43,12 +47,19 @@ export default function TicketDetail() {
   const [formEquipo, setFormEquipo] = useState(null)
   const [guardandoEquipo, setGuardandoEquipo] = useState(false)
 
+  const [fotos, setFotos] = useState([])
+  const [mostrarFotos, setMostrarFotos] = useState(false)
+  const [descripcionFoto, setDescripcionFoto] = useState('')
+  const [subiendoFotos, setSubiendoFotos] = useState(false)
+  const [fotoAmpliada, setFotoAmpliada] = useState(null)
+
   useEffect(() => {
     cargarTicket()
     cargarEventos()
     cargarTecnicosAsignados()
     cargarInventarioUsado()
     cargarItemsDisponibles()
+    cargarFotos()
     if (isAdmin) cargarTodosTecnicos()
   }, [id])
 
@@ -205,6 +216,112 @@ export default function TicketDetail() {
       .neq('estado', 'dado_de_baja')
       .order('nombre')
     setItemsDisponibles(data ?? [])
+  }
+
+  async function cargarFotos() {
+    const { data, error } = await supabase
+      .from('ticket_fotos')
+      .select('id, storage_path, nombre_archivo, descripcion, created_at, profiles ( nombre_completo )')
+      .eq('ticket_id', id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error(error)
+      setFotos([])
+      return
+    }
+
+    if (!data || data.length === 0) {
+      setFotos([])
+      return
+    }
+
+    // URLs firmadas de corta duración — el bucket es privado, así que no
+    // hay una URL pública fija para cada foto.
+    const { data: firmadas, error: errorFirma } = await supabase.storage
+      .from(BUCKET_FOTOS)
+      .createSignedUrls(
+        data.map((f) => f.storage_path),
+        3600
+      )
+
+    if (errorFirma) console.error(errorFirma)
+
+    setFotos(
+      data.map((f, i) => ({
+        ...f,
+        url: firmadas?.[i]?.signedUrl ?? null,
+      }))
+    )
+  }
+
+  async function subirFotos(fileList) {
+    const archivos = Array.from(fileList ?? [])
+    if (archivos.length === 0) return
+
+    for (const archivo of archivos) {
+      if (!FOTO_TIPOS_PERMITIDOS.includes(archivo.type)) {
+        alert(`"${archivo.name}" no es un formato de imagen permitido (JPG, PNG, WEBP o HEIC).`)
+        continue
+      }
+      if (archivo.size > FOTO_TAMANO_MAXIMO) {
+        alert(`"${archivo.name}" pesa más de 15 MB. Achicala antes de subirla.`)
+        continue
+      }
+    }
+
+    const validos = archivos.filter(
+      (a) => FOTO_TIPOS_PERMITIDOS.includes(a.type) && a.size <= FOTO_TAMANO_MAXIMO
+    )
+    if (validos.length === 0) return
+
+    setSubiendoFotos(true)
+
+    for (const archivo of validos) {
+      const extension = archivo.name.includes('.') ? archivo.name.split('.').pop() : 'jpg'
+      const path = `${id}/${crypto.randomUUID()}.${extension}`
+
+      const { error: errorSubida } = await supabase.storage.from(BUCKET_FOTOS).upload(path, archivo, {
+        contentType: archivo.type,
+      })
+
+      if (errorSubida) {
+        alert(`No se pudo subir "${archivo.name}": ` + errorSubida.message)
+        continue
+      }
+
+      const { error: errorFila } = await supabase.from('ticket_fotos').insert({
+        ticket_id: id,
+        storage_path: path,
+        nombre_archivo: archivo.name,
+        descripcion: descripcionFoto.trim() || null,
+        subido_por: user.id,
+      })
+
+      if (errorFila) {
+        // El archivo ya se subió pero no se pudo registrar (ej. ticket
+        // cerrado) — lo borramos para no dejar un huérfano en el bucket.
+        await supabase.storage.from(BUCKET_FOTOS).remove([path])
+        alert(`No se pudo guardar "${archivo.name}": ` + errorFila.message)
+      }
+    }
+
+    setDescripcionFoto('')
+    setSubiendoFotos(false)
+    cargarFotos()
+  }
+
+  async function eliminarFoto(foto) {
+    if (!confirm('¿Eliminar esta foto? No se puede deshacer.')) return
+
+    const { error } = await supabase.from('ticket_fotos').delete().eq('id', foto.id)
+    if (error) {
+      alert('No se pudo eliminar la foto: ' + error.message)
+      return
+    }
+
+    await supabase.storage.from(BUCKET_FOTOS).remove([foto.storage_path])
+    setFotos((prev) => prev.filter((f) => f.id !== foto.id))
   }
 
   function agregarAlCarrito(e) {
@@ -708,6 +825,124 @@ export default function TicketDetail() {
           </CardBody>
         )}
       </Card>
+
+      <Card className="mb-6">
+        <button
+          onClick={() => setMostrarFotos((v) => !v)}
+          className="flex w-full items-center justify-between px-5 py-4 text-left"
+        >
+          <span className="flex items-center gap-3">
+            <Images className="h-4 w-4 text-slate-400" />
+            <span>
+              <span className="block text-sm font-semibold text-navy-800">Fotos</span>
+              <span className="block text-xs text-slate-400">
+                Antes/después, daños detectados, evidencia del trabajo ({fotos.length} foto
+                {fotos.length !== 1 && 's'})
+              </span>
+            </span>
+          </span>
+          <span className="text-xs font-medium text-cyan-700">{mostrarFotos ? 'Ocultar' : 'Ver / agregar'}</span>
+        </button>
+
+        {mostrarFotos && (
+          <CardBody className="border-t border-slate-100 pt-4">
+            {!bloqueado && (
+              <div className="mb-4 flex flex-wrap items-end gap-2">
+                <FieldGroup label="Descripción" hint="(opcional, se aplica a las fotos que subas ahora)" className="flex-1">
+                  <Input
+                    value={descripcionFoto}
+                    onChange={(e) => setDescripcionFoto(e.target.value)}
+                    placeholder="Ej: Estado al recibir, daño en la pantalla…"
+                  />
+                </FieldGroup>
+                <Button as="label" variant="outline" loading={subiendoFotos} className="cursor-pointer">
+                  {!subiendoFotos && <Plus className="h-4 w-4" />}
+                  {subiendoFotos ? 'Subiendo…' : 'Agregar fotos'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    disabled={subiendoFotos}
+                    onChange={(e) => {
+                      subirFotos(e.target.files)
+                      e.target.value = ''
+                    }}
+                    className="hidden"
+                  />
+                </Button>
+              </div>
+            )}
+
+            {fotos.length === 0 ? (
+              <p className="text-sm text-slate-400">Este ticket todavía no tiene fotos.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {fotos.map((foto) => (
+                  <div key={foto.id} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => foto.url && setFotoAmpliada(foto)}
+                      className="block aspect-square w-full"
+                    >
+                      {foto.url ? (
+                        <img
+                          src={foto.url}
+                          alt={foto.descripcion || foto.nombre_archivo || 'Foto del ticket'}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                          No se pudo cargar
+                        </div>
+                      )}
+                    </button>
+                    {!bloqueado && (
+                      <button
+                        onClick={() => eliminarFoto(foto)}
+                        className="absolute right-1.5 top-1.5 rounded-full bg-slate-900/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        title="Eliminar foto"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {foto.descripcion && (
+                      <p className="truncate bg-white px-2 py-1 text-xs text-slate-600" title={foto.descripcion}>
+                        {foto.descripcion}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        )}
+      </Card>
+
+      {fotoAmpliada && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 p-6"
+          onClick={() => setFotoAmpliada(null)}
+        >
+          <button
+            onClick={() => setFotoAmpliada(null)}
+            className="absolute right-5 top-5 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Cerrar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={fotoAmpliada.url}
+            alt={fotoAmpliada.descripcion || fotoAmpliada.nombre_archivo || 'Foto del ticket'}
+            className="max-h-full max-w-full rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {fotoAmpliada.descripcion && (
+            <p className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/70 px-4 py-1.5 text-sm text-white">
+              {fotoAmpliada.descripcion}
+            </p>
+          )}
+        </div>
+      )}
 
       <Card>
         <CardHeader title="Historial" />
