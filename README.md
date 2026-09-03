@@ -12,6 +12,8 @@ Stack: **React + Vite + Tailwind + Supabase**, mismo esquema que "La Rueda".
 - **Inventario**: listado con stock/mínimo, alta de nuevos ítems
 - **Fotos**: adjuntar fotos a un ticket o reparación (antes/después, daños, evidencia del
   trabajo), guardadas en un bucket privado de Supabase Storage
+- **Reportes** (solo admin): tickets por mes, tiempo promedio de resolución y técnico más
+  productivo, con exportación a Excel y PDF
 - Row Level Security del lado de la base de datos (ya aplicado en las migraciones)
 
 ## 1. Instalar dependencias

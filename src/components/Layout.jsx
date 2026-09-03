@@ -9,6 +9,7 @@ import {
   UserCog,
   Users2,
   Bell,
+  BarChart3,
   LogOut,
   Menu,
   X,
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/tecnicos', label: 'Técnicos', icon: UserCog, adminOnly: true },
   { to: '/grupos', label: 'Grupos de trabajo', icon: Users2, adminOnly: true },
   { to: '/notificaciones', label: 'Notificaciones', icon: Bell, adminOnly: true },
+  { to: '/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true },
 ]
 
 function iniciales(nombre) {

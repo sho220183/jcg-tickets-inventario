@@ -12,6 +12,7 @@ import Clientes from './pages/Clientes'
 import Tecnicos from './pages/Tecnicos'
 import GruposTrabajo from './pages/GruposTrabajo'
 import Notificaciones from './pages/Notificaciones'
+import Reportes from './pages/Reportes'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/tecnicos" element={<Tecnicos />} />
             <Route path="/grupos" element={<GruposTrabajo />} />
             <Route path="/notificaciones" element={<Notificaciones />} />
+            <Route path="/reportes" element={<Reportes />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
