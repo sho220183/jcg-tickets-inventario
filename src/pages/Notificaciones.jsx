@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
+import { Bell, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import PageHeader from '../components/ui/PageHeader'
+import Badge from '../components/ui/Badge'
+import EmptyState from '../components/ui/EmptyState'
+import FilterPills from '../components/ui/FilterPills'
+import Table, { Td, Th } from '../components/ui/Table'
+import { PageLoading } from '../components/ui/Spinner'
 
-const ESTADO_BADGE = {
-  pendiente: 'bg-amber-100 text-amber-800',
-  enviado: 'bg-emerald-100 text-emerald-800',
-  error: 'bg-red-100 text-red-800',
+const ESTADO_TONO = {
+  pendiente: 'amber',
+  enviado: 'emerald',
+  error: 'red',
 }
 
 const FILTROS = ['todos', 'pendiente', 'enviado', 'error']
@@ -34,8 +41,6 @@ export default function Notificaciones() {
   }
 
   async function reintentar(n) {
-    // Insertar una fila nueva (en vez de actualizar la existente) dispara
-    // de nuevo el Database Webhook que llama a la Edge Function.
     const { error } = await supabase.from('notificaciones').insert({
       ticket_id: n.ticket_id,
       canal: n.canal,
@@ -54,92 +59,86 @@ export default function Notificaciones() {
   }
 
   if (!isAdmin) {
-    return <p className="text-slate-500">Esta sección es solo para administradores.</p>
+    return (
+      <EmptyState
+        icon={Bell}
+        title="Sección solo para administradores"
+        description="No tenés permisos para ver esta pantalla."
+      />
+    )
   }
 
   const filtradas = filtro === 'todos' ? notificaciones : notificaciones.filter((n) => n.estado === filtro)
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-semibold text-navy-800">Notificaciones</h1>
-      <p className="mb-6 text-sm text-slate-500">
-        Cola de avisos por email y WhatsApp a clientes y técnicos. El canal WhatsApp todavía no
-        envía de verdad — queda registrado como pendiente hasta que se conecte.
-      </p>
+      <PageHeader
+        title="Notificaciones"
+        subtitle="Cola de avisos por email y WhatsApp a clientes y técnicos. El canal WhatsApp todavía no envía de verdad — queda registrado como pendiente hasta que se conecte."
+      />
 
-      <div className="mb-4 flex gap-2">
-        {FILTROS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFiltro(f)}
-            className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${
-              filtro === f ? 'bg-navy-700 text-white' : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
+      <FilterPills
+        opciones={FILTROS.map((f) => ({ value: f, label: f.charAt(0).toUpperCase() + f.slice(1) }))}
+        valor={filtro}
+        onChange={setFiltro}
+      />
 
       {loading ? (
-        <p className="text-slate-500">Cargando…</p>
+        <PageLoading />
       ) : filtradas.length === 0 ? (
-        <p className="text-slate-500">No hay notificaciones para este filtro.</p>
+        <EmptyState icon={Bell} title="No hay notificaciones para este filtro" />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Fecha</th>
-                <th className="px-4 py-3">Ticket</th>
-                <th className="px-4 py-3">Para</th>
-                <th className="px-4 py-3">Canal</th>
-                <th className="px-4 py-3">Mensaje</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3"></th>
+        <Table>
+          <thead className="bg-slate-50">
+            <tr>
+              <Th>Fecha</Th>
+              <Th>Ticket</Th>
+              <Th>Para</Th>
+              <Th>Canal</Th>
+              <Th>Mensaje</Th>
+              <Th>Estado</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filtradas.map((n) => (
+              <tr key={n.id} className="hover:bg-slate-50">
+                <Td className="whitespace-nowrap text-xs text-slate-500">
+                  {new Date(n.created_at).toLocaleString('es-PY')}
+                </Td>
+                <Td className="text-cyan-700">{n.tickets?.codigo ?? '—'}</Td>
+                <Td className="text-slate-600">
+                  <span className="capitalize">{n.destinatario_tipo}</span>
+                  <br />
+                  <span className="text-xs text-slate-400">{n.destinatario_contacto}</span>
+                </Td>
+                <Td className="uppercase text-slate-600">{n.canal}</Td>
+                <Td className="max-w-xs truncate text-slate-600" title={n.mensaje}>
+                  {n.mensaje}
+                </Td>
+                <Td>
+                  <Badge tono={ESTADO_TONO[n.estado]}>{n.estado}</Badge>
+                  {n.estado === 'error' && n.error_detalle && (
+                    <p className="mt-1 max-w-xs truncate text-xs text-red-500" title={n.error_detalle}>
+                      {n.error_detalle}
+                    </p>
+                  )}
+                </Td>
+                <Td>
+                  {n.estado === 'error' && (
+                    <button
+                      onClick={() => reintentar(n)}
+                      className="flex items-center gap-1 text-xs font-medium text-cyan-700 hover:text-cyan-800"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Reintentar
+                    </button>
+                  )}
+                </Td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtradas.map((n) => (
-                <tr key={n.id} className="hover:bg-slate-50">
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
-                    {new Date(n.created_at).toLocaleString('es-PY')}
-                  </td>
-                  <td className="px-4 py-3 text-cyan-700">{n.tickets?.codigo ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    <span className="capitalize">{n.destinatario_tipo}</span>
-                    <br />
-                    <span className="text-xs text-slate-400">{n.destinatario_contacto}</span>
-                  </td>
-                  <td className="px-4 py-3 uppercase text-slate-600">{n.canal}</td>
-                  <td className="max-w-xs truncate px-4 py-3 text-slate-600" title={n.mensaje}>
-                    {n.mensaje}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_BADGE[n.estado]}`}>
-                      {n.estado}
-                    </span>
-                    {n.estado === 'error' && n.error_detalle && (
-                      <p className="mt-1 max-w-xs truncate text-xs text-red-500" title={n.error_detalle}>
-                        {n.error_detalle}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {n.estado === 'error' && (
-                      <button
-                        onClick={() => reintentar(n)}
-                        className="text-xs font-medium text-cyan-700 hover:text-cyan-800"
-                      >
-                        Reintentar
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </Table>
       )}
     </div>
   )

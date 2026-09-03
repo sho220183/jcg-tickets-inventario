@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import PageHeader from '../components/ui/PageHeader'
+import Card, { CardBody } from '../components/ui/Card'
+import Button from '../components/ui/Button'
+import EmptyState from '../components/ui/EmptyState'
+import Table, { Td, Th } from '../components/ui/Table'
+import { PageLoading } from '../components/ui/Spinner'
+import { FieldGroup, Input, Textarea } from '../components/ui/Field'
 
 const VACIO = {
   nombre: '',
@@ -115,194 +123,176 @@ export default function Clientes() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-navy-800">Clientes</h1>
-        <button
-          onClick={mostrarForm ? () => setMostrarForm(false) : abrirNuevo}
-          className="rounded-md bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-600"
-        >
-          {mostrarForm ? 'Cancelar' : '+ Nuevo cliente'}
-        </button>
-      </div>
-
-      {mostrarForm && (
-        <form
-          onSubmit={guardar}
-          className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-5 md:grid-cols-2"
-        >
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Nombre / Razón social
-            </label>
-            <input
-              required
-              value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Ej: Farmacia San Roque"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              RUC <span className="font-normal text-slate-400">(ej: 3769383-2)</span>
-            </label>
-            <input
-              value={form.ruc}
-              maxLength={15}
-              onChange={(e) => setForm({ ...form, ruc: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="3769383-2"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Persona de contacto
-            </label>
-            <input
-              value={form.contacto_nombre}
-              onChange={(e) => setForm({ ...form, contacto_nombre: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Teléfono</label>
-            <input
-              value={form.telefono}
-              onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="0981123456"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Email <span className="font-normal text-slate-400">(para notificaciones)</span>
-            </label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">Dirección</label>
-            <input
-              value={form.direccion}
-              onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">Notas</label>
-            <textarea
-              value={form.notas}
-              onChange={(e) => setForm({ ...form, notas: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              rows={2}
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <p className="mb-1 text-sm font-medium text-slate-700">Notificar por</p>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.notificar_email}
-                  onChange={(e) => setForm({ ...form, notificar_email: e.target.checked })}
-                />
-                Email
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.notificar_whatsapp}
-                  onChange={(e) => setForm({ ...form, notificar_whatsapp: e.target.checked })}
-                />
-                WhatsApp
-              </label>
-            </div>
-            {form.notificar_whatsapp && !form.telefono && (
-              <p className="mt-1 text-xs text-amber-600">
-                Falta cargar el teléfono para poder notificar por WhatsApp.
-              </p>
-            )}
-          </div>
-
-          <div className="md:col-span-2">
-            <button
-              type="submit"
-              className="rounded-md bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700"
-            >
-              {editandoId ? 'Guardar cambios' : 'Crear cliente'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      <input
-        value={busqueda}
-        onChange={(e) => setBusqueda(e.target.value)}
-        placeholder="Buscar por nombre o RUC…"
-        className="mb-4 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
+      <PageHeader
+        title="Clientes"
+        subtitle="Empresas y personas a las que les brindás soporte."
+        action={
+          <Button onClick={mostrarForm ? () => setMostrarForm(false) : abrirNuevo} variant={mostrarForm ? 'outline' : 'primary'}>
+            {mostrarForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {mostrarForm ? 'Cancelar' : 'Nuevo cliente'}
+          </Button>
+        }
       />
 
+      {mostrarForm && (
+        <Card className="mb-6">
+          <CardBody>
+            <form onSubmit={guardar} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FieldGroup label="Nombre / Razón social">
+                <Input
+                  required
+                  value={form.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  placeholder="Ej: Farmacia San Roque"
+                />
+              </FieldGroup>
+
+              <FieldGroup label="RUC" hint="(ej: 3769383-2)">
+                <Input
+                  value={form.ruc}
+                  maxLength={15}
+                  onChange={(e) => setForm({ ...form, ruc: e.target.value })}
+                  placeholder="3769383-2"
+                />
+              </FieldGroup>
+
+              <FieldGroup label="Persona de contacto">
+                <Input
+                  value={form.contacto_nombre}
+                  onChange={(e) => setForm({ ...form, contacto_nombre: e.target.value })}
+                />
+              </FieldGroup>
+
+              <FieldGroup label="Teléfono">
+                <Input
+                  value={form.telefono}
+                  onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                  placeholder="0981123456"
+                />
+              </FieldGroup>
+
+              <FieldGroup label="Email" hint="(para notificaciones)">
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </FieldGroup>
+
+              <FieldGroup label="Dirección" className="md:col-span-2">
+                <Input
+                  value={form.direccion}
+                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                />
+              </FieldGroup>
+
+              <FieldGroup label="Notas" className="md:col-span-2">
+                <Textarea
+                  value={form.notas}
+                  onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                  rows={2}
+                />
+              </FieldGroup>
+
+              <div className="md:col-span-2">
+                <p className="mb-1 text-sm font-medium text-slate-700">Notificar por</p>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={form.notificar_email}
+                      onChange={(e) => setForm({ ...form, notificar_email: e.target.checked })}
+                    />
+                    Email
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={form.notificar_whatsapp}
+                      onChange={(e) => setForm({ ...form, notificar_whatsapp: e.target.checked })}
+                    />
+                    WhatsApp
+                  </label>
+                </div>
+                {form.notificar_whatsapp && !form.telefono && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    Falta cargar el teléfono para poder notificar por WhatsApp.
+                  </p>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <Button type="submit" variant="accent">
+                  {editandoId ? 'Guardar cambios' : 'Crear cliente'}
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+      )}
+
+      <div className="relative mb-4 max-w-sm">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar por nombre o RUC…"
+          className="pl-9"
+        />
+      </div>
+
       {loading ? (
-        <p className="text-slate-500">Cargando clientes…</p>
+        <PageLoading label="Cargando clientes…" />
       ) : clientesFiltrados.length === 0 ? (
-        <p className="text-slate-500">
-          {clientes.length === 0
-            ? 'Todavía no hay clientes cargados. Creá el primero arriba.'
-            : 'Ningún cliente coincide con la búsqueda.'}
-        </p>
+        <EmptyState
+          icon={Users}
+          title={clientes.length === 0 ? 'Todavía no hay clientes cargados' : 'Ningún cliente coincide con la búsqueda'}
+          description={clientes.length === 0 ? 'Creá el primero con el botón de arriba.' : undefined}
+        />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">RUC</th>
-                <th className="px-4 py-3">Contacto</th>
-                <th className="px-4 py-3">Teléfono</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {clientesFiltrados.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-navy-800">{c.nombre}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.ruc || '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.contacto_nombre || '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.telefono || '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.email || '—'}</td>
-                  <td className="px-4 py-3 text-right">
+        <Table>
+          <thead className="bg-slate-50">
+            <tr>
+              <Th>Nombre</Th>
+              <Th>RUC</Th>
+              <Th>Contacto</Th>
+              <Th>Teléfono</Th>
+              <Th>Email</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {clientesFiltrados.map((c) => (
+              <tr key={c.id} className="hover:bg-slate-50">
+                <Td className="font-medium text-navy-800">{c.nombre}</Td>
+                <Td className="text-slate-600">{c.ruc || '—'}</Td>
+                <Td className="text-slate-600">{c.contacto_nombre || '—'}</Td>
+                <Td className="text-slate-600">{c.telefono || '—'}</Td>
+                <Td className="text-slate-600">{c.email || '—'}</Td>
+                <Td className="text-right">
+                  <div className="flex justify-end gap-3">
                     <button
                       onClick={() => abrirEdicion(c)}
-                      className="mr-3 text-xs font-medium text-cyan-700 hover:text-cyan-800"
+                      className="flex items-center gap-1 text-xs font-medium text-cyan-700 hover:text-cyan-800"
                     >
+                      <Pencil className="h-3.5 w-3.5" />
                       Editar
                     </button>
                     {isAdmin && (
                       <button
                         onClick={() => eliminar(c)}
-                        className="text-xs font-medium text-red-600 hover:text-red-700"
+                        className="flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
                       >
+                        <Trash2 className="h-3.5 w-3.5" />
                         Eliminar
                       </button>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
       )}
     </div>
   )
