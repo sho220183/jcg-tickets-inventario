@@ -30,11 +30,14 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
+    // maybeSingle (no single): un usuario autenticado que entra por el
+    // portal de clientes no tiene fila en "profiles" (no es staff), y eso
+    // no es un error — simplemente session sin profile ni rol de staff.
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (error) console.error('Error cargando el perfil:', error.message)
     setProfile(data ?? null)

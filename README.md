@@ -14,6 +14,9 @@ Stack: **React + Vite + Tailwind + Supabase**, mismo esquema que "La Rueda".
   trabajo), guardadas en un bucket privado de Supabase Storage
 - **Reportes** (solo admin): tickets por mes, tiempo promedio de resolución y técnico más
   productivo, con exportación a Excel y PDF
+- **Portal de clientes** (`/portal/login`): acceso de solo lectura para que el cliente vea el
+  estado de sus propios tickets y reparaciones, sin ver notas internas ni fotos. El acceso
+  lo crea un admin (ver sección "Portal de clientes" más abajo)
 - Row Level Security del lado de la base de datos (ya aplicado en las migraciones)
 
 ## 1. Instalar dependencias
@@ -100,6 +103,23 @@ que no reflejan lo que hace la migración de verdad, y columnas que el frontend 
 podrían no existir todavía en tu proyecto de Supabase. Corrige solo, cuando corresponde, la clase
 de bugs que no cambian el comportamiento visible del sistema (lint, build, policies faltantes) —
 para cualquier cambio de funcionalidad, te va a consultar primero.
+
+## Portal de clientes
+
+El portal (`/portal/login`) es de **solo lectura**: el cliente ve el código, título, tipo,
+estado y fechas de sus propios tickets — no ve notas internas, fotos ni el técnico asignado.
+No hay auto-registro; para darle acceso a un cliente:
+
+1. En Supabase, **Authentication → Users → Add user**, creá el usuario con el email del cliente
+   y una contraseña temporal (pasásela vos, por WhatsApp o el medio que uses).
+2. En el **SQL Editor**, vinculá ese usuario a su ficha de cliente:
+   ```sql
+   update clientes set portal_user_id = '<uuid-del-usuario>' where id = '<uuid-del-cliente>';
+   ```
+3. El cliente entra en `/portal/login` con ese email y contraseña.
+
+Ampliar el alcance del portal (que vea fotos, deje comentarios, o apruebe presupuestos de
+reparación) es un cambio de funcionalidad nuevo — no está incluido en esta primera versión.
 
 ## Próximos pasos sugeridos (no incluidos todavía en este esqueleto)
 
