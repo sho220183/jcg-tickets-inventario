@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { AlertCircle, Lock, Mail, Ticket } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import Button from '../components/ui/Button'
@@ -7,9 +7,10 @@ import { Input, Label } from '../components/ui/Field'
 
 export default function Login() {
   const { session, signIn } = useAuth()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
+  const [error, setError] = useState(location.state?.error ?? null)
   const [submitting, setSubmitting] = useState(false)
 
   if (session) return <Navigate to="/" replace />
@@ -110,6 +111,9 @@ export default function Login() {
 
           <p className="mt-5 text-center text-xs text-slate-400">
             Los usuarios se crean desde el panel de administración. No hay registro público.
+          </p>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            ¿Sos cliente? <Link to="/portal/login" className="font-medium text-cyan-700 hover:text-cyan-800">Entrá al portal de clientes</Link>
           </p>
         </form>
       </div>
