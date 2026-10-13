@@ -9,6 +9,8 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { FieldGroup, Input, Select, Textarea } from '../components/ui/Field'
 import { PageLoading } from '../components/ui/Spinner'
+import ChecklistProcedimiento from '../components/procedimientos/ChecklistProcedimiento'
+import { mensajeError } from '../lib/procedimientos'
 
 const ESTADO_TONO = {
   nuevo: 'cyan',
@@ -404,7 +406,8 @@ export default function TicketDetail() {
     const { error } = await supabase.from('tickets').update({ estado: nuevoEstado }).eq('id', id)
 
     if (error) {
-      alert('No se pudo cambiar el estado: ' + error.message)
+      // mensajeError suma el "hint" de la base: en un alta/baja dice qué falta para cerrar.
+      alert('No se pudo cambiar el estado: ' + mensajeError(error))
       return
     }
     cargarTicket()
@@ -434,15 +437,19 @@ export default function TicketDetail() {
   if (!ticket) return <p className="text-slate-500">Ticket no encontrado.</p>
 
   const bloqueado = ticket.estado === 'cerrado'
+  const volverA = {
+    reparacion: { to: '/reparaciones', label: 'reparaciones' },
+    procedimiento: { to: '/altas-bajas', label: 'altas y bajas' },
+  }[ticket.tipo] ?? { to: '/tickets', label: 'tickets' }
 
   return (
     <div>
       <Link
-        to={ticket.tipo === 'reparacion' ? '/reparaciones' : '/tickets'}
+        to={volverA.to}
         className="mb-4 inline-flex items-center gap-1 text-xs font-medium text-cyan-700 hover:text-cyan-800"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        Volver a {ticket.tipo === 'reparacion' ? 'reparaciones' : 'tickets'}
+        Volver a {volverA.label}
       </Link>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -450,6 +457,7 @@ export default function TicketDetail() {
           <p className="flex items-center gap-2 text-xs font-medium text-slate-400">
             {ticket.codigo}
             {ticket.tipo === 'reparacion' && <Badge tono="navy">Reparación</Badge>}
+            {ticket.tipo === 'procedimiento' && <Badge tono="navy">Alta / baja</Badge>}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-navy-800">{ticket.titulo}</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -479,6 +487,8 @@ export default function TicketDetail() {
           asignados quedaron congelados. Para volver a editarlo, cambiá el estado arriba.
         </div>
       )}
+
+      {ticket.tipo === 'procedimiento' && <ChecklistProcedimiento ticketId={id} bloqueado={bloqueado} />}
 
       {ticket.tipo === 'reparacion' && (
         <Card className="mb-6">

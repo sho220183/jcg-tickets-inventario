@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, CheckCircle2, PackageCheck, Ticket, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, PackageCheck, Ticket, Wrench } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { ESTADOS, estadoLabel } from '../lib/estados'
 import PageHeader from '../components/ui/PageHeader'
@@ -20,6 +20,7 @@ const TONO_ESTADO = {
 export default function Dashboard() {
   const [conteosSoporte, setConteosSoporte] = useState({})
   const [conteosReparacion, setConteosReparacion] = useState({})
+  const [conteosProcedimiento, setConteosProcedimiento] = useState({})
   const [stockBajo, setStockBajo] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -34,14 +35,16 @@ export default function Dashboard() {
 
     const soporte = Object.fromEntries(ESTADOS.map((e) => [e, 0]))
     const reparacion = Object.fromEntries(ESTADOS.map((e) => [e, 0]))
+    const procedimiento = Object.fromEntries(ESTADOS.map((e) => [e, 0]))
 
     tickets?.forEach((t) => {
-      const destino = t.tipo === 'reparacion' ? reparacion : soporte
+      const destino = t.tipo === 'reparacion' ? reparacion : t.tipo === 'procedimiento' ? procedimiento : soporte
       destino[t.estado] = (destino[t.estado] ?? 0) + 1
     })
 
     setConteosSoporte(soporte)
     setConteosReparacion(reparacion)
+    setConteosProcedimiento(procedimiento)
 
     const { data: items } = await supabase
       .from('inventario_items')
@@ -55,7 +58,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Resumen general de soporte, reparaciones e inventario." />
+      <PageHeader title="Dashboard" subtitle="Resumen general de soporte, reparaciones, altas/bajas e inventario." />
 
       <div className="mb-6">
         <div className="mb-3 flex items-center justify-between">
@@ -95,6 +98,28 @@ export default function Dashboard() {
               key={estado}
               value={conteosReparacion[estado] ?? 0}
               label={estadoLabel('reparacion', estado)}
+              tono={TONO_ESTADO[estado]}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-navy-800">
+            <ClipboardCheck className="h-4 w-4 text-slate-400" />
+            Altas y bajas (PRO-TI-001)
+          </h2>
+          <Link to="/altas-bajas" className="flex items-center gap-1 text-xs font-medium text-cyan-700 hover:text-cyan-800">
+            Ver todas <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          {ESTADOS.map((estado) => (
+            <StatCard
+              key={estado}
+              value={conteosProcedimiento[estado] ?? 0}
+              label={estadoLabel('procedimiento', estado)}
               tono={TONO_ESTADO[estado]}
             />
           ))}

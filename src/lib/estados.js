@@ -16,6 +16,7 @@ const LABELS_REPARACION = {
   cerrado: 'Entregado',
 }
 
+// Los tickets de alta/baja (tipo "procedimiento") usan las etiquetas de soporte.
 export function estadoLabel(tipo, estado) {
   const mapa = tipo === 'reparacion' ? LABELS_REPARACION : LABELS_SOPORTE
   return mapa[estado] ?? estado
@@ -28,4 +29,14 @@ export const TIPO_EQUIPO_LABEL = {
   celular: 'Celular',
   tablet: 'Tablet',
   otro: 'Otro',
+}
+
+export const TIPO_TICKET_LABEL = {
+  soporte: 'Soporte técnico',
+  reparacion: 'Reparación',
+  procedimiento: 'Alta / baja',
+}
+
+export function tipoTicketLabel(tipo) {
+  return TIPO_TICKET_LABEL[tipo] ?? tipo
 }
