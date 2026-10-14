@@ -5,44 +5,58 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
+  const [iniciando, setIniciando] = useState(true) // todavía no sabemos si hay sesión guardada
   const [profile, setProfile] = useState(null) // fila de la tabla "profiles" (incluye el rol)
-  const [loading, setLoading] = useState(true)
+  const [perfilDe, setPerfilDe] = useState(null) // id del usuario cuyo perfil ya se consultó
+  const [errorPerfil, setErrorPerfil] = useState(null)
 
   useEffect(() => {
-    // Sesión inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id)
-      else setLoading(false)
+      setIniciando(false)
     })
 
-    // Reacciona a login/logout en cualquier parte de la app
+    // Reacciona a login/logout en cualquier parte de la app. También se dispara
+    // al renovar el token (cada ~1 h): por eso el perfil depende del id del
+    // usuario y no de la sesión, así no se vuelve a pedir en cada renovación.
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id)
-      else {
-        setProfile(null)
-        setLoading(false)
-      }
     })
 
     return () => listener.subscription.unsubscribe()
   }, [])
 
-  async function fetchProfile(userId) {
+  const userId = session?.user?.id ?? null
+
+  useEffect(() => {
+    if (!userId) {
+      setProfile(null)
+      setPerfilDe(null)
+      setErrorPerfil(null)
+      return
+    }
+
+    let vigente = true
     // maybeSingle (no single): un usuario autenticado que entra por el
     // portal de clientes no tiene fila en "profiles" (no es staff), y eso
     // no es un error — simplemente session sin profile ni rol de staff.
-    const { data, error } = await supabase
+    supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle()
+      .then(({ data, error }) => {
+        if (!vigente) return // llegó tarde: ya hay otro usuario o se cerró la sesión
+        if (error) console.error('Error cargando el perfil:', error.message)
+        setErrorPerfil(error ?? null)
+        setProfile(data ?? null)
+        setPerfilDe(userId)
+      })
 
-    if (error) console.error('Error cargando el perfil:', error.message)
-    setProfile(data ?? null)
-    setLoading(false)
-  }
+    return () => {
+      vigente = false
+    }
+  }, [userId])
 
   async function signIn(email, password) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -53,10 +67,16 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
+  // Sigue "cargando" hasta tener el perfil del usuario ACTUAL. Antes, entre el
+  // login y la llegada del perfil había un instante con sesión y sin perfil, y
+  // ProtectedRoute lo tomaba como "no es staff" y cerraba la sesión.
+  const loading = iniciando || (userId !== null && perfilDe !== userId)
+
   const value = {
     session,
     user: session?.user ?? null,
     profile,
+    errorPerfil,
     isAdmin: profile?.rol === 'admin',
     loading,
     signIn,

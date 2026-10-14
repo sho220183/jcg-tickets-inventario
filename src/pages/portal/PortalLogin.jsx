@@ -1,19 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { AlertCircle, Lock, Mail, UserCircle } from 'lucide-react'
 import { useClientAuth } from '../../context/ClientAuthContext'
+import { SIN_VINCULO } from '../../components/portal/ClientProtectedRoute'
 import Button from '../../components/ui/Button'
 import { Input, Label } from '../../components/ui/Field'
 
 export default function PortalLogin() {
-  const { session, signIn } = useClientAuth()
+  const { session, cliente, errorCliente, loading, signIn, signOut } = useClientAuth()
   const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(location.state?.error ?? null)
   const [submitting, setSubmitting] = useState(false)
 
-  if (session) return <Navigate to="/portal" replace />
+  // Usuario válido pero sin cliente vinculado: se cierra la sesión UNA vez y se
+  // avisa acá (antes se rebotaba entre /portal/login y /portal sin fin).
+  const sinVinculo = Boolean(session) && !loading && !cliente && !errorCliente
+  useEffect(() => {
+    if (sinVinculo) {
+      signOut()
+      setError(SIN_VINCULO)
+    }
+  }, [sinVinculo]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (session && !loading && (cliente || errorCliente)) return <Navigate to="/portal" replace />
+  const ingresando = submitting || (Boolean(session) && loading)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -78,8 +90,8 @@ export default function PortalLogin() {
           </div>
         )}
 
-        <Button type="submit" loading={submitting} className="mt-4 w-full" size="lg">
-          {submitting ? 'Ingresando…' : 'Ingresar'}
+        <Button type="submit" loading={ingresando} className="mt-4 w-full" size="lg">
+          {ingresando ? 'Ingresando…' : 'Ingresar'}
         </Button>
 
         <p className="mt-5 text-center text-xs text-slate-400">
