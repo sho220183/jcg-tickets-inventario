@@ -9,39 +9,54 @@ const ClientAuthContext = createContext(null)
 
 export function ClientAuthProvider({ children }) {
   const [session, setSession] = useState(null)
+  const [iniciando, setIniciando] = useState(true)
   const [cliente, setCliente] = useState(null) // fila de "clientes" vinculada a este usuario
-  const [loading, setLoading] = useState(true)
+  const [clienteDe, setClienteDe] = useState(null) // id del usuario cuyo cliente ya se consultó
+  const [errorCliente, setErrorCliente] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) fetchCliente(session.user.id)
-      else setLoading(false)
+      setIniciando(false)
     })
 
+    // También se dispara al renovar el token: el cliente depende del id del
+    // usuario, no de la sesión, para no volver a pedirlo en cada renovación.
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) fetchCliente(session.user.id)
-      else {
-        setCliente(null)
-        setLoading(false)
-      }
     })
 
     return () => listener.subscription.unsubscribe()
   }, [])
 
-  async function fetchCliente(userId) {
-    const { data, error } = await supabase
+  const userId = session?.user?.id ?? null
+
+  useEffect(() => {
+    if (!userId) {
+      setCliente(null)
+      setClienteDe(null)
+      setErrorCliente(null)
+      return
+    }
+
+    let vigente = true
+    supabase
       .from('clientes')
       .select('id, nombre, email, telefono')
       .eq('portal_user_id', userId)
       .maybeSingle()
+      .then(({ data, error }) => {
+        if (!vigente) return
+        if (error) console.error('Error cargando los datos del cliente:', error.message)
+        setErrorCliente(error ?? null)
+        setCliente(data ?? null)
+        setClienteDe(userId)
+      })
 
-    if (error) console.error('Error cargando los datos del cliente:', error.message)
-    setCliente(data ?? null)
-    setLoading(false)
-  }
+    return () => {
+      vigente = false
+    }
+  }, [userId])
 
   async function signIn(email, password) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -52,7 +67,11 @@ export function ClientAuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
-  const value = { session, cliente, loading, signIn, signOut }
+  // Sigue "cargando" hasta tener el cliente del usuario ACTUAL (misma
+  // corrección que en AuthContext: evita cerrar la sesión recién iniciada).
+  const loading = iniciando || (userId !== null && clienteDe !== userId)
+
+  const value = { session, cliente, errorCliente, loading, signIn, signOut }
 
   return <ClientAuthContext.Provider value={value}>{children}</ClientAuthContext.Provider>
 }

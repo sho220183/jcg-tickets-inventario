@@ -1,19 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { AlertCircle, Lock, Mail, Ticket } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { SIN_ACCESO } from '../components/ProtectedRoute'
 import Button from '../components/ui/Button'
 import { Input, Label } from '../components/ui/Field'
 
 export default function Login() {
-  const { session, signIn } = useAuth()
+  const { session, profile, errorPerfil, loading, signIn, signOut } = useAuth()
   const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(location.state?.error ?? null)
   const [submitting, setSubmitting] = useState(false)
 
-  if (session) return <Navigate to="/" replace />
+  // Cuenta válida pero sin perfil de staff (ej. un cliente del portal): se
+  // cierra la sesión UNA vez, en un efecto, y se avisa acá mismo. Antes se
+  // rebotaba entre /login y / y cada render disparaba otro cierre de sesión.
+  const sinAcceso = Boolean(session) && !loading && !profile && !errorPerfil
+  useEffect(() => {
+    if (sinAcceso) {
+      signOut()
+      setError(SIN_ACCESO)
+    }
+  }, [sinAcceso]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Se entra cuando el perfil ya se consultó: con perfil, o con un error de red
+  // (ProtectedRoute muestra "Reintentar" en vez de echar al usuario).
+  if (session && !loading && (profile || errorPerfil)) return <Navigate to="/" replace />
+  const ingresando = submitting || (Boolean(session) && loading) // login hecho, esperando el perfil
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -105,8 +120,8 @@ export default function Login() {
             </div>
           )}
 
-          <Button type="submit" loading={submitting} className="mt-4 w-full" size="lg">
-            {submitting ? 'Ingresando…' : 'Ingresar'}
+          <Button type="submit" loading={ingresando} className="mt-4 w-full" size="lg">
+            {ingresando ? 'Ingresando…' : 'Ingresar'}
           </Button>
 
           <p className="mt-5 text-center text-xs text-slate-400">
