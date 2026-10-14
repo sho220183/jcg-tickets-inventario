@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Tickets from './pages/Tickets'
 import Reparaciones from './pages/Reparaciones'
+import AltasBajas from './pages/AltasBajas'
 import TicketDetail from './pages/TicketDetail'
 import Inventario from './pages/Inventario'
 import Clientes from './pages/Clientes'
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/tickets" element={<Tickets />} />
             <Route path="/reparaciones" element={<Reparaciones />} />
+            <Route path="/altas-bajas" element={<AltasBajas />} />
             <Route path="/tickets/:id" element={<TicketDetail />} />
             <Route path="/inventario" element={<Inventario />} />
             <Route path="/clientes" element={<Clientes />} />

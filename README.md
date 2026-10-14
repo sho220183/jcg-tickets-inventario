@@ -10,6 +10,9 @@ Stack: **React + Vite + Tailwind + Supabase**, mismo esquema que "La Rueda".
 - **Dashboard**: conteo de tickets por estado + alertas de stock bajo
 - **Tickets**: listado con filtro por estado, creación de tickets, detalle con historial y cambio de estado
 - **Inventario**: listado con stock/mínimo, alta de nuevos ítems
+- **Altas y bajas** (procedimiento PRO-TI-001): tickets de alta/baja de usuarios y equipos con
+  checklist versionado, evidencia obligatoria en ítems críticos, bloqueo de cierre en la base,
+  actualización automática del inventario y seguimiento de la eliminación definitiva
 - **Fotos**: adjuntar fotos a un ticket o reparación (antes/después, daños, evidencia del
   trabajo), guardadas en un bucket privado de Supabase Storage
 - **Reportes** (solo admin): tickets por mes, tiempo promedio de resolución y técnico más

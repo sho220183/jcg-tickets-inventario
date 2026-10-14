@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Ticket as TicketIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
-import { estadoLabel } from '../../lib/estados'
+import { estadoLabel, tipoTicketLabel } from '../../lib/estados'
 import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
 import EmptyState from '../../components/ui/EmptyState'
@@ -14,6 +14,7 @@ const FILTROS = [
   { value: 'todos', label: 'Todos' },
   { value: 'soporte', label: 'Soporte' },
   { value: 'reparacion', label: 'Reparaciones' },
+  { value: 'procedimiento', label: 'Altas / bajas' },
 ]
 
 const ESTADO_TONO = {
@@ -81,7 +82,7 @@ export default function PortalTickets() {
                   </Link>
                 </Td>
                 <Td>{t.titulo}</Td>
-                <Td className="capitalize text-slate-600">{t.tipo === 'reparacion' ? 'Reparación' : 'Soporte'}</Td>
+                <Td className="text-slate-600">{tipoTicketLabel(t.tipo)}</Td>
                 <Td>
                   <Badge tono={ESTADO_TONO[t.estado]}>{estadoLabel(t.tipo, t.estado)}</Badge>
                 </Td>

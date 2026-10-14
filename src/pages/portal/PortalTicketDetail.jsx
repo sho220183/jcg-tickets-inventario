@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Calendar, Ticket as TicketIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
-import { estadoLabel } from '../../lib/estados'
+import { estadoLabel, tipoTicketLabel } from '../../lib/estados'
 import Badge from '../../components/ui/Badge'
 import Card, { CardBody, CardHeader } from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -66,7 +66,7 @@ export default function PortalTicketDetail() {
       <Card>
         <CardHeader
           title={`${ticket.codigo} — ${ticket.titulo}`}
-          subtitle={ticket.tipo === 'reparacion' ? 'Reparación' : 'Soporte técnico'}
+          subtitle={tipoTicketLabel(ticket.tipo)}
           action={<Badge tono={ESTADO_TONO[ticket.estado]}>{estadoLabel(ticket.tipo, ticket.estado)}</Badge>}
         />
         <CardBody>
